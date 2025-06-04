@@ -615,7 +615,7 @@
     function editNote(id) {
         fetch(`/api/note/${id}`).then(r=>r.json()).then(note=>{
             if(note.id) {
-                showNoteModal(note);
+            showNoteModal(note);
             } else {
                 alert('获取游记内容失败');
             }

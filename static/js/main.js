@@ -135,7 +135,7 @@ class TravelAgent {
     }
 
     // 轮询任务状态
-    async pollTaskStatus(taskId, interval = 3000, maxAttempts = 40) {
+    async pollTaskStatus(taskId, interval = 3000, maxAttempts = 100) {
         let attempts = 0;
         
         // 状态消息元素
@@ -270,13 +270,30 @@ class TravelAgent {
         const resultSection = document.getElementById('resultSection');
         const planResult = document.getElementById('planResult');
 
+        // 计算实际总费用
+        let calculatedCost = 0;
+        if (plan.days && plan.days.length > 0) {
+            plan.days.forEach(day => {
+                if (day.items) {
+                    day.items.forEach(item => {
+                        calculatedCost += item.cost || 0;
+                    });
+                }
+            });
+        }
+
+        // 预算状态判断
+        const budgetStatus = this.getBudgetStatus(plan.total_cost, calculatedCost);
+
         let html = `
             <div class="plan-summary">
                 <h3>${plan.title}</h3>
                 <p>${plan.summary || ''}</p>
                 <div class="plan-meta">
-                    <span class="tag tag-primary">总费用: ¥${plan.total_cost || '待计算'}</span>
+                    <span class="tag tag-primary">预算费用: ¥${plan.total_cost || calculatedCost}</span>
+                    ${budgetStatus.tag}
                 </div>
+                ${budgetStatus.message ? `<div class="budget-notice">${budgetStatus.message}</div>` : ''}
             </div>
         `;
 
@@ -314,8 +331,27 @@ class TravelAgent {
             html += '</div>';
         }
 
+        // 预算分解显示
+        if (plan.budget_breakdown) {
+            html += '<div class="budget-breakdown-section"><h4>💰 预算分解：</h4><div class="budget-grid">';
+            const breakdownLabels = {
+                'transportation': '🚗 交通费',
+                'accommodation': '🏨 住宿费',
+                'food': '🍽️ 餐饮费',
+                'attractions': '🎫 景点门票',
+                'shopping': '🛍️ 购物预算',
+                'other': '📝 其他费用'
+            };
+            
+            for (const [key, value] of Object.entries(plan.budget_breakdown)) {
+                const label = breakdownLabels[key] || key;
+                html += `<div class="budget-item"><span>${label}</span><span>¥${value}</span></div>`;
+            }
+            html += '</div></div>';
+        }
+
         if (plan.tips && plan.tips.length > 0) {
-            html += '<div class="tips-section"><h4>实用建议：</h4><ul>';
+            html += '<div class="tips-section"><h4>💡 实用建议：</h4><ul>';
             plan.tips.forEach(tip => {
                 html += `<li>${tip}</li>`;
             });
@@ -342,6 +378,35 @@ class TravelAgent {
         
         // 滚动到结果区域
         resultSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    getBudgetStatus(totalCost, calculatedCost) {
+        // 从表单获取用户设定的预算
+        const budgetMin = parseFloat(document.getElementById('budgetMin').value);
+        const budgetMax = parseFloat(document.getElementById('budgetMax').value);
+        
+        const actualCost = totalCost || calculatedCost;
+        
+        if (actualCost <= budgetMax && actualCost >= budgetMin * 0.8) {
+            return {
+                tag: '<span class="tag tag-success">✅ 预算合理</span>',
+                message: null
+            };
+        } else if (actualCost > budgetMax) {
+            return {
+                tag: '<span class="tag tag-danger">⚠️ 超出预算</span>',
+                message: `<div style="color: #FF3B30; padding: 8px; background: rgba(255,59,48,0.1); border-radius: 8px; margin-top: 8px;">
+                    注意：计划费用 ¥${actualCost} 超出您设定的预算上限 ¥${budgetMax}，建议适当调整行程。
+                </div>`
+            };
+        } else {
+            return {
+                tag: '<span class="tag tag-warning">💡 预算充裕</span>',
+                message: `<div style="color: #FF9500; padding: 8px; background: rgba(255,149,0,0.1); border-radius: 8px; margin-top: 8px;">
+                    提示：计划费用 ¥${actualCost} 低于预算，您可以考虑增加一些体验项目。
+                </div>`
+            };
+        }
     }
 
     viewLatestPlan() {

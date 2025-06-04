@@ -87,19 +87,26 @@ def process_plan_generation_task(task_id, user_id, data):
                 return
                 
             # 构建AI提示词
-            system_prompt = """
+            system_prompt = f"""
 你是一个专业的旅行规划师。根据用户的输入，生成详细的旅行计划。
+
+重要约束：
+1. 总费用必须严格控制在用户设定的预算范围内：{budget_min}-{budget_max}元
+2. 每个行程项目的cost加起来必须等于total_cost
+3. total_cost不能超过{budget_max}元，不能低于{budget_min}元的80%
+4. 如果预算较低，请适当减少高费用项目，选择更经济的方案
+
 请以JSON格式返回计划，包含以下结构：
-{
+{{
     "title": "旅行计划标题",
     "summary": "行程概要",
     "days": [
-        {
+        {{
             "day": 1,
             "date": "2024-05-01",
             "theme": "当日主题",
             "items": [
-                {
+                {{
                     "time": "09:00",
                     "activity": "参观故宫",
                     "location": "故宫博物院",
@@ -108,24 +115,43 @@ def process_plan_generation_task(task_id, user_id, data):
                     "description": "详细描述",
                     "latitude": 39.9163,
                     "longitude": 116.3972
-                }
+                }}
             ]
-        }
+        }}
     ],
     "total_cost": 1200,
+    "budget_breakdown": {{
+        "transportation": 400,
+        "accommodation": 600,
+        "food": 300,
+        "attractions": 200,
+        "shopping": 100,
+        "other": 100
+    }},
     "tips": ["实用建议1", "实用建议2"]
-}
+}}
+
+计算费用时请考虑：
+- 交通费（往返+当地交通）
+- 住宿费（每晚价格×天数）
+- 餐饮费（三餐费用）
+- 景点门票费
+- 购物预算
+- 其他杂费
+
+确保total_cost = 所有items的cost之和，且在{budget_min}-{budget_max}元范围内。
 """
             
             user_prompt = f"""
 请为我规划一个旅行计划：
 - 目的地：{', '.join(destinations)}
 - 天数：{days}天
-- 预算：{budget_min}-{budget_max}元
+- 预算限制：{budget_min}-{budget_max}元（请严格控制在此范围内）
 - 主题偏好：{theme}
 - 交通方式：{transport}
 
 请生成详细的每日行程安排，包括景点参观、用餐、休息等。
+特别注意：预算控制是硬性要求，不可超出{budget_max}元。
 """
             
             messages = [
@@ -142,6 +168,40 @@ def process_plan_generation_task(task_id, user_id, data):
                 )
                 
                 ai_result = json.loads(response.choices[0].message.content)
+                
+                # 验证预算控制
+                total_cost = ai_result.get('total_cost', 0)
+                calculated_cost = 0
+                
+                # 计算所有行程项目的实际费用
+                for day_data in ai_result.get('days', []):
+                    for item in day_data.get('items', []):
+                        calculated_cost += item.get('cost', 0)
+                
+                # 预算验证和修正
+                if total_cost > budget_max or calculated_cost > budget_max:
+                    print(f"预算超出限制，AI生成费用: {total_cost}, 计算费用: {calculated_cost}, 预算上限: {budget_max}")
+                    # 按比例缩减费用
+                    scale_factor = budget_max * 0.9 / max(total_cost, calculated_cost)
+                    
+                    # 修正每个项目的费用
+                    for day_data in ai_result.get('days', []):
+                        for item in day_data.get('items', []):
+                            item['cost'] = round(item.get('cost', 0) * scale_factor)
+                    
+                    # 重新计算总费用
+                    calculated_cost = 0
+                    for day_data in ai_result.get('days', []):
+                        for item in day_data.get('items', []):
+                            calculated_cost += item.get('cost', 0)
+                    
+                    ai_result['total_cost'] = calculated_cost
+                    total_cost = calculated_cost
+                
+                # 最终验证
+                if total_cost < budget_min * 0.8:
+                    print(f"预算过低，调整为最低预算的80%: {budget_min * 0.8}")
+                    ai_result['total_cost'] = int(budget_min * 0.8)
                 
                 # 创建旅行计划
                 travel_plan = TravelPlan(
@@ -204,6 +264,219 @@ def process_plan_generation_task(task_id, user_id, data):
                 
     except Exception as e:
         print(f"任务处理异常: {str(e)}")
+        tasks[task_id]['status'] = 'failed'
+        tasks[task_id]['error'] = f'任务处理异常: {str(e)}'
+
+def process_report_generation_task(task_id, user_id):
+    """后台处理AI生成报告任务"""
+    try:
+        tasks[task_id]['status'] = 'processing'
+        
+        with app.app_context():
+            user = User.query.get(user_id)
+            if not user:
+                tasks[task_id]['status'] = 'failed'
+                tasks[task_id]['error'] = '用户不存在'
+                return
+                
+            # 获取用户的所有历史数据
+            # 1. 已完成的旅行计划
+            today = date.today()
+            completed_plans = TravelPlan.query.filter(
+                TravelPlan.user_id == user_id,
+                TravelPlan.end_date < today
+            ).order_by(TravelPlan.end_date.desc()).all()
+            
+            # 2. 所有游记
+            all_notes = []
+            for plan in TravelPlan.query.filter_by(user_id=user_id).all():
+                all_notes.extend(plan.notes)
+            
+            # 3. 开销记录
+            expenses = Expense.query.filter_by(user_id=user_id).all()
+            
+            # 4. 动态记录
+            moments = Moment.query.filter_by(user_id=user_id).all()
+            
+            # 如果没有足够的数据，返回错误
+            if len(completed_plans) == 0 and len(all_notes) == 0:
+                tasks[task_id]['status'] = 'failed'
+                tasks[task_id]['error'] = '您还没有足够的旅行数据来生成报告，请先完成一些旅行计划并撰写游记。'
+                return
+            
+            # 准备数据摘要
+            report_data = {
+                'user_info': {
+                    'username': user.username,
+                    'total_plans': len(TravelPlan.query.filter_by(user_id=user_id).all()),
+                    'completed_plans': len(completed_plans),
+                    'total_notes': len(all_notes),
+                    'total_expenses': len(expenses),
+                    'total_moments': len(moments)
+                },
+                'plans_summary': [],
+                'notes_summary': [],
+                'expense_summary': {
+                    'total_amount': sum(e.amount for e in expenses),
+                    'categories': {},
+                    'monthly_spending': {}
+                },
+                'travel_destinations': set(),
+                'travel_themes': {},
+                'transport_modes': {}
+            }
+            
+            # 分析旅行计划
+            for plan in completed_plans[:10]:  # 最近10个完成的计划
+                plan_data = {
+                    'title': plan.title,
+                    'dates': f"{plan.start_date} 到 {plan.end_date}",
+                    'days': plan.total_days,
+                    'theme': plan.travel_theme,
+                    'transport': plan.transport_mode,
+                    'budget': f"{plan.budget_min}-{plan.budget_max}元"
+                }
+                report_data['plans_summary'].append(plan_data)
+                
+                # 统计主题和交通方式
+                if plan.travel_theme:
+                    report_data['travel_themes'][plan.travel_theme] = report_data['travel_themes'].get(plan.travel_theme, 0) + 1
+                if plan.transport_mode:
+                    report_data['transport_modes'][plan.transport_mode] = report_data['transport_modes'].get(plan.transport_mode, 0) + 1
+            
+            # 分析游记
+            for note in all_notes[:10]:  # 最近10篇游记
+                note_data = {
+                    'title': note.title,
+                    'content_length': len(note.content),
+                    'created_date': note.created_at.strftime('%Y-%m-%d')
+                }
+                report_data['notes_summary'].append(note_data)
+            
+            # 分析开销
+            for expense in expenses:
+                category = expense.category
+                month = expense.expense_date.strftime('%Y-%m') if expense.expense_date else '未知'
+                
+                if category:
+                    report_data['expense_summary']['categories'][category] = \
+                        report_data['expense_summary']['categories'].get(category, 0) + expense.amount
+                
+                report_data['expense_summary']['monthly_spending'][month] = \
+                    report_data['expense_summary']['monthly_spending'].get(month, 0) + expense.amount
+            
+            # 从行程中提取目的地
+            for plan in TravelPlan.query.filter_by(user_id=user_id).all():
+                for itinerary in plan.itineraries:
+                    for item in itinerary.itinerary_items:
+                        if item.location:
+                            report_data['travel_destinations'].add(item.location)
+            
+            report_data['travel_destinations'] = list(report_data['travel_destinations'])
+            
+            # 构建AI提示词
+            system_prompt = """
+你是一个专业的旅行数据分析师和报告撰写专家。请根据用户的旅行历史数据，生成一份详细、有洞察力的个人旅行履历报告。
+
+报告应该包含以下部分，使用Markdown格式：
+
+# 🌍 个人旅行履历报告
+
+## 📊 旅行数据概览
+- 总体统计数据
+
+## 🗺️ 旅行足迹分析
+- 主要目的地分析
+- 地域偏好特点
+
+## 🎯 个人旅行偏好画像
+- 旅行主题偏好
+- 交通方式习惯
+- 预算水平分析
+
+## 💰 旅行消费分析
+- 开销结构分析
+- 消费趋势洞察
+
+## 📝 游记创作分析
+- 记录习惯分析
+- 内容特点总结
+
+## 🚀 个人成长轨迹
+- 旅行经验发展
+- 能力提升体现
+
+## 💡 未来旅行建议
+- 基于历史数据的个性化推荐
+- 旅行技能提升建议
+
+请用温暖、专业、有洞察力的语调撰写，让用户感受到自己旅行经历的价值和成长。
+"""
+
+            user_prompt = f"""
+请为用户 {user.username} 生成旅行履历报告，基于以下数据：
+
+## 基础统计
+- 总旅行计划数：{report_data['user_info']['total_plans']}
+- 已完成计划数：{report_data['user_info']['completed_plans']}
+- 游记总数：{report_data['user_info']['total_notes']}
+- 开销记录数：{report_data['user_info']['total_expenses']}
+- 动态发布数：{report_data['user_info']['total_moments']}
+
+## 最近完成的旅行计划
+{report_data['plans_summary']}
+
+## 游记概况
+{report_data['notes_summary']}
+
+## 开销分析
+- 总开销：{report_data['expense_summary']['total_amount']}元
+- 分类开销：{report_data['expense_summary']['categories']}
+- 月度开销：{report_data['expense_summary']['monthly_spending']}
+
+## 旅行目的地
+{report_data['travel_destinations']}
+
+## 旅行主题偏好
+{report_data['travel_themes']}
+
+## 交通方式偏好
+{report_data['transport_modes']}
+
+请基于这些数据生成一份有深度、有洞察的个人旅行履历报告。
+"""
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            try:
+                # 调用DEEPSEEK API生成报告
+                response = deepseek_client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=messages,
+                    max_tokens=4000,
+                    temperature=0.7
+                )
+                
+                report_content = response.choices[0].message.content
+                
+                # 更新任务状态
+                tasks[task_id]['status'] = 'completed'
+                tasks[task_id]['result'] = {
+                    'report': report_content,
+                    'data_summary': report_data['user_info'],
+                    'generated_at': datetime.now().isoformat()
+                }
+                
+            except Exception as e:
+                print(f"AI生成报告失败: {str(e)}")
+                tasks[task_id]['status'] = 'failed'
+                tasks[task_id]['error'] = f'生成报告失败: {str(e)}'
+                
+    except Exception as e:
+        print(f"报告任务处理异常: {str(e)}")
         tasks[task_id]['status'] = 'failed'
         tasks[task_id]['error'] = f'任务处理异常: {str(e)}'
 
@@ -313,6 +586,7 @@ def get_task_status(task_id):
     task = tasks[task_id]
     
     # 检查任务所有权
+    print(f"=== 查询任务状态，任务ID: {task_id}, 状态: {tasks.get(task_id, {}).get('status', '不存在')} ===")
     if task.get('user_id') != session['user_id']:
         return jsonify({'success': False, 'error': '无权访问此任务'}), 403
     
@@ -345,9 +619,9 @@ def get_plans():
     """获取所有旅行计划，分为已完成和未完成（根据end_date与当前日期判断）"""
     user_id = session['user_id']
     plans = TravelPlan.query.filter_by(user_id=user_id).all()
-    completed = []
-    future = []
+    all_plans = []
     today = date.today()
+    
     for p in plans:
         # 动态判断状态
         plan_end_date = p.end_date if isinstance(p.end_date, date) else datetime.strptime(p.end_date, '%Y-%m-%d').date()
@@ -355,27 +629,29 @@ def get_plans():
             status = 'completed'
         else:
             status = p.status
+            
         plan_dict = {
-        'id': p.id,
-        'title': p.title,
-        'start_date': p.start_date.isoformat(),
-        'end_date': p.end_date.isoformat(),
-        'total_days': p.total_days,
-        'budget_min': p.budget_min,
-        'budget_max': p.budget_max,
-        'travel_theme': p.travel_theme,
-        'transport_mode': p.transport_mode,
+            'id': p.id,
+            'title': p.title,
+            'start_date': p.start_date.isoformat(),
+            'end_date': p.end_date.isoformat(),
+            'total_days': p.total_days,
+            'budget_min': p.budget_min,
+            'budget_max': p.budget_max,
+            'travel_theme': p.travel_theme,
+            'transport_mode': p.transport_mode,
             'status': status,
-        'ai_generated': p.ai_generated,
-        'created_at': p.created_at.isoformat()
+            'ai_generated': p.ai_generated,
+            'created_at': p.created_at.isoformat()
         }
-        if status == 'completed':
-            completed.append(plan_dict)
-        else:
-            future.append(plan_dict)
+        all_plans.append(plan_dict)
+    
+    # 按创建时间倒序排列
+    all_plans.sort(key=lambda x: x['created_at'], reverse=True)
+    
     return jsonify({
-        'completed': completed,
-        'future': future
+        'success': True,
+        'plans': all_plans
     })
 
 @app.route('/api/plan/<int:plan_id>')
@@ -2146,7 +2422,7 @@ def add_expense():
 @app.route('/api/expenses/upload-receipt', methods=['POST'])
 @login_required
 def upload_receipt():
-    """上传并识别支付截图"""
+    """上传并识别支付截图 - 使用异步任务"""
     try:
         if 'receipt' not in request.files:
             return jsonify({'success': False, 'msg': '未找到上传文件'}), 400
@@ -2171,14 +2447,31 @@ def upload_receipt():
             # 获取相对路径用于存储
             relative_path = f"/static/uploads/receipts/{filename}"
             
-            # 调用AI识别（这里简化处理，实际应该调用OCR服务）
-            recognition_result = ocr_service.recognize_payment_receipt(file_path)
-            recognition_result['receipt_image'] = relative_path
+            # 创建异步OCR任务
+            task_id = str(uuid.uuid4())
+            
+            tasks[task_id] = {
+                'status': 'pending',
+                'created_at': datetime.now().isoformat(),
+                'user_id': session['user_id'],
+                'task_type': 'ocr_receipt',
+                'file_path': file_path,
+                'relative_path': relative_path
+            }
+            
+            # 启动后台线程处理OCR
+            thread = threading.Thread(
+                target=process_ocr_task,
+                args=(task_id, file_path, relative_path)
+            )
+            thread.daemon = True
+            thread.start()
             
             return jsonify({
                 'success': True,
-                'msg': '上传成功',
-                'data': recognition_result
+                'task_id': task_id,
+                'msg': 'OCR识别任务已提交，请稍后查询结果',
+                'receipt_image': relative_path
             })
         else:
             return jsonify({'success': False, 'msg': '不支持的文件格式'}), 400
@@ -2186,6 +2479,26 @@ def upload_receipt():
     except Exception as e:
         print(f"上传截图失败: {str(e)}")
         return jsonify({'success': False, 'msg': f'上传截图失败: {str(e)}'}), 500
+
+def process_ocr_task(task_id, file_path, relative_path):
+    """后台处理OCR识别任务"""
+    print(f"=== OCR任务开始处理，任务ID: {task_id} ===")
+    try:
+        tasks[task_id]['status'] = 'processing'
+        
+        # 调用OCR识别服务
+        recognition_result = ocr_service.recognize_payment_receipt(file_path)
+        recognition_result['receipt_image'] = relative_path
+        
+        # 更新任务状态
+        tasks[task_id]['status'] = 'completed'
+        tasks[task_id]['result'] = recognition_result
+        
+    except Exception as e:
+        print(f"OCR识别失败: {str(e)}")
+        print(f"=== 任务状态已更新为completed，任务ID: {task_id} ===")
+        tasks[task_id]['status'] = 'failed'
+        tasks[task_id]['error'] = f'OCR识别失败: {str(e)}'
 
 @app.route('/api/expenses/stats', methods=['GET'])
 @login_required
@@ -2206,7 +2519,15 @@ def get_expense_stats():
         # 计算统计数据
         monthly_total = sum(expense.amount for expense in monthly_expenses)
         monthly_count = len(monthly_expenses)
-        daily_average = monthly_total / now.day if now.day > 0 else 0
+        
+        # 计算实际消费天数（有消费记录的天数）
+        expense_dates = set()
+        for expense in monthly_expenses:
+            expense_date = expense.expense_date.date() if hasattr(expense.expense_date, 'date') else expense.expense_date
+            expense_dates.add(expense_date)
+        
+        actual_days = len(expense_dates) if expense_dates else 0
+        daily_average = monthly_total / actual_days if actual_days > 0 else 0
         
         # 获取主要分类
         category_stats = {}
@@ -2418,210 +2739,37 @@ def reports_page():
 @app.route('/api/generate-travel-report', methods=['POST'])
 @login_required
 def generate_travel_report():
-    """生成用户旅行报告"""
+    """提交生成旅行报告的异步任务"""
     try:
-        user_id = session['user_id']
-        user = User.query.get(user_id)
+        # 创建任务ID
+        task_id = str(uuid.uuid4())
         
-        # 获取用户的所有历史数据
-        # 1. 已完成的旅行计划
-        today = date.today()
-        completed_plans = TravelPlan.query.filter(
-            TravelPlan.user_id == user_id,
-            TravelPlan.end_date < today
-        ).order_by(TravelPlan.end_date.desc()).all()
-        
-        # 2. 所有游记
-        all_notes = []
-        for plan in TravelPlan.query.filter_by(user_id=user_id).all():
-            all_notes.extend(plan.notes)
-        
-        # 3. 开销记录
-        expenses = Expense.query.filter_by(user_id=user_id).all()
-        
-        # 4. 动态记录
-        moments = Moment.query.filter_by(user_id=user_id).all()
-        
-        # 如果没有足够的数据，返回提示
-        if len(completed_plans) == 0 and len(all_notes) == 0:
-            return jsonify({
-                'success': False,
-                'msg': '您还没有足够的旅行数据来生成报告，请先完成一些旅行计划并撰写游记。'
-            })
-        
-        # 准备数据摘要
-        report_data = {
-            'user_info': {
-                'username': user.username,
-                'total_plans': len(TravelPlan.query.filter_by(user_id=user_id).all()),
-                'completed_plans': len(completed_plans),
-                'total_notes': len(all_notes),
-                'total_expenses': len(expenses),
-                'total_moments': len(moments)
-            },
-            'plans_summary': [],
-            'notes_summary': [],
-            'expense_summary': {
-                'total_amount': sum(e.amount for e in expenses),
-                'categories': {},
-                'monthly_spending': {}
-            },
-            'travel_destinations': set(),
-            'travel_themes': {},
-            'transport_modes': {}
+        # 存储任务信息
+        tasks[task_id] = {
+            'status': 'pending',
+            'created_at': datetime.now().isoformat(),
+            'user_id': session['user_id'],
+            'task_type': 'travel_report'
         }
         
-        # 分析旅行计划
-        for plan in completed_plans[:10]:  # 最近10个完成的计划
-            plan_data = {
-                'title': plan.title,
-                'dates': f"{plan.start_date} 到 {plan.end_date}",
-                'days': plan.total_days,
-                'theme': plan.travel_theme,
-                'transport': plan.transport_mode,
-                'budget': f"{plan.budget_min}-{plan.budget_max}元"
-            }
-            report_data['plans_summary'].append(plan_data)
-            
-            # 统计主题和交通方式
-            if plan.travel_theme:
-                report_data['travel_themes'][plan.travel_theme] = report_data['travel_themes'].get(plan.travel_theme, 0) + 1
-            if plan.transport_mode:
-                report_data['transport_modes'][plan.transport_mode] = report_data['transport_modes'].get(plan.transport_mode, 0) + 1
-        
-        # 分析游记
-        for note in all_notes[:10]:  # 最近10篇游记
-            note_data = {
-                'title': note.title,
-                'content_length': len(note.content),
-                'created_date': note.created_at.strftime('%Y-%m-%d')
-            }
-            report_data['notes_summary'].append(note_data)
-        
-        # 分析开销
-        for expense in expenses:
-            category = expense.category
-            month = expense.expense_date.strftime('%Y-%m') if expense.expense_date else '未知'
-            
-            if category:
-                report_data['expense_summary']['categories'][category] = \
-                    report_data['expense_summary']['categories'].get(category, 0) + expense.amount
-            
-            report_data['expense_summary']['monthly_spending'][month] = \
-                report_data['expense_summary']['monthly_spending'].get(month, 0) + expense.amount
-        
-        # 从行程中提取目的地
-        for plan in TravelPlan.query.filter_by(user_id=user_id).all():
-            for itinerary in plan.itineraries:
-                for item in itinerary.itinerary_items:
-                    if item.location:
-                        report_data['travel_destinations'].add(item.location)
-        
-        report_data['travel_destinations'] = list(report_data['travel_destinations'])
-        
-        # 构建AI提示词
-        system_prompt = """
-你是一个专业的旅行数据分析师和报告撰写专家。请根据用户的旅行历史数据，生成一份详细、有洞察力的个人旅行履历报告。
-
-报告应该包含以下部分，使用Markdown格式：
-
-# 🌍 个人旅行履历报告
-
-## 📊 旅行数据概览
-- 总体统计数据
-
-## 🗺️ 旅行足迹分析
-- 主要目的地分析
-- 地域偏好特点
-
-## 🎯 个人旅行偏好画像
-- 旅行主题偏好
-- 交通方式习惯
-- 预算水平分析
-
-## 💰 旅行消费分析
-- 开销结构分析
-- 消费趋势洞察
-
-## 📝 游记创作分析
-- 记录习惯分析
-- 内容特点总结
-
-## 🚀 个人成长轨迹
-- 旅行经验发展
-- 能力提升体现
-
-## 💡 未来旅行建议
-- 基于历史数据的个性化推荐
-- 旅行技能提升建议
-
-请用温暖、专业、有洞察力的语调撰写，让用户感受到自己旅行经历的价值和成长。
-"""
-
-        user_prompt = f"""
-请为用户 {user.username} 生成旅行履历报告，基于以下数据：
-
-## 基础统计
-- 总旅行计划数：{report_data['user_info']['total_plans']}
-- 已完成计划数：{report_data['user_info']['completed_plans']}
-- 游记总数：{report_data['user_info']['total_notes']}
-- 开销记录数：{report_data['user_info']['total_expenses']}
-- 动态发布数：{report_data['user_info']['total_moments']}
-
-## 最近完成的旅行计划
-{report_data['plans_summary']}
-
-## 游记概况
-{report_data['notes_summary']}
-
-## 开销分析
-- 总开销：{report_data['expense_summary']['total_amount']}元
-- 分类开销：{report_data['expense_summary']['categories']}
-- 月度开销：{report_data['expense_summary']['monthly_spending']}
-
-## 旅行目的地
-{report_data['travel_destinations']}
-
-## 旅行主题偏好
-{report_data['travel_themes']}
-
-## 交通方式偏好
-{report_data['transport_modes']}
-
-请基于这些数据生成一份有深度、有洞察的个人旅行履历报告。
-"""
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        # 调用DEEPSEEK API生成报告
-        response = deepseek_client.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages,
-            max_tokens=4000,
-            temperature=0.7
+        # 启动后台线程处理
+        thread = threading.Thread(
+            target=process_report_generation_task,
+            args=(task_id, session['user_id'])
         )
+        thread.daemon = True
+        thread.start()
         
-        report_content = response.choices[0].message.content
-        
-        # 保存报告到数据库（可选）
-        # 这里可以创建一个Report模型来保存历史报告
-        
+        # 立即返回任务ID
         return jsonify({
             'success': True,
-            'report': report_content,
-            'data_summary': report_data['user_info'],
-            'generated_at': datetime.now().isoformat()
+            'task_id': task_id,
+            'message': '旅行报告生成任务已提交，请稍后查询结果'
         })
         
     except Exception as e:
-        print(f"生成旅行报告失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'msg': f'生成报告失败: {str(e)}'
-        }), 500
+        print(f"提交生成报告任务失败: {str(e)}")
+        return jsonify({'success': False, 'error': f'提交任务失败: {str(e)}'}), 500
 
 @app.route('/api/travel-stats', methods=['GET'])
 @login_required

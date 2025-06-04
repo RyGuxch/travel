@@ -758,27 +758,27 @@
                 
                 // 只有当游记ID存在时才创建游记卡片，否则显示提示信息
                 if (noteId && noteId !== null) {
-                    // 创建游记卡片样式
-                    noteContent = `
-                        <div class="shared-note-card">
-                            <div class="shared-note-header">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg>
-                                游记分享
-                            </div>
-                            <div class="shared-note-content">
-                                ${marked.parse(summaryPart)}
-                            </div>
-                            <div class="shared-note-footer">
-                                <a href="/note/${noteId}" class="shared-note-link">查看完整游记</a>
-                            </div>
+                // 创建游记卡片样式
+                noteContent = `
+                    <div class="shared-note-card">
+                        <div class="shared-note-header">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                            游记分享
                         </div>
-                    `;
+                        <div class="shared-note-content">
+                            ${marked.parse(summaryPart)}
+                        </div>
+                        <div class="shared-note-footer">
+                            <a href="/note/${noteId}" class="shared-note-link">查看完整游记</a>
+                        </div>
+                    </div>
+                `;
                 } else {
                     // 游记已被删除，显示提示信息
                     noteContent = `

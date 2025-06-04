@@ -778,11 +778,11 @@
                     <div class="grid-2">
                         <div class="form-group">
                             <label class="form-label">金额 (¥)</label>
-                            <input type="number" id="amount" class="form-input" step="0.01" required>
+                            <input type="number" id="amount" name="amount" class="form-input" step="0.01" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">分类</label>
-                            <select id="category" class="form-input" required>
+                            <select id="category" name="category" class="form-input" required>
                                 <option value="">选择分类</option>
                                 <option value="交通">🚗 交通</option>
                                 <option value="住宿">🏨 住宿</option>
@@ -798,11 +798,11 @@
                     <div class="grid-2">
                         <div class="form-group">
                             <label class="form-label">商家/描述</label>
-                            <input type="text" id="description" class="form-input" placeholder="例如：星巴克咖啡">
+                            <input type="text" id="description" name="description" class="form-input" placeholder="例如：星巴克咖啡">
                         </div>
                         <div class="form-group">
                             <label class="form-label">支付方式</label>
-                            <select id="paymentMethod" class="form-input">
+                            <select id="paymentMethod" name="payment_method" class="form-input">
                                 <option value="">选择支付方式</option>
                                 <option value="微信支付">微信支付</option>
                                 <option value="支付宝">支付宝</option>
@@ -816,11 +816,11 @@
                     <div class="grid-2">
                         <div class="form-group">
                             <label class="form-label">消费时间</label>
-                            <input type="datetime-local" id="expenseDate" class="form-input" required>
+                            <input type="datetime-local" id="expenseDate" name="expense_date" class="form-input" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">关联计划</label>
-                            <select id="planId" class="form-input">
+                            <select id="planId" name="plan_id" class="form-input">
                                 <option value="">不关联计划</option>
                             </select>
                         </div>
@@ -828,8 +828,15 @@
                     
                     <div class="form-group">
                         <label class="form-label">备注</label>
-                        <textarea id="notes" class="form-input" rows="3" placeholder="添加备注信息..."></textarea>
+                        <textarea id="notes" name="notes" class="form-input" rows="3" placeholder="添加备注信息..."></textarea>
                     </div>
+                    
+                    <!-- 隐藏字段 -->
+                    <input type="hidden" name="merchant" value="">
+                    <input type="hidden" name="location" value="">
+                    <input type="hidden" name="receipt_image" value="">
+                    <input type="hidden" name="is_ai_extracted" value="false">
+                    <input type="hidden" name="ai_confidence" value="0">
                     
                     <button type="submit" class="btn btn-primary">💾 保存记录</button>
                 </form>
@@ -1107,7 +1114,7 @@
             const progressText = document.getElementById('progressText');
 
             progressContainer.style.display = 'block';
-            progressText.textContent = '正在上传和识别...';
+            progressText.textContent = '正在上传图片...';
 
             fetch('/api/expenses/upload-receipt', {
                 method: 'POST',
@@ -1116,19 +1123,90 @@
             })
             .then(response => response.json())
             .then(data => {
-                progressContainer.style.display = 'none';
                 if (data.success) {
-                    // 显示识别结果并询问用户确认
-                    showRecognitionResult(data.data);
+                    // 显示OCR识别进度并开始轮询
+                    progressText.textContent = 'AI正在识别中...';
+                    pollOCRTaskStatus(data.task_id, data.receipt_image);
                 } else {
+                    progressContainer.style.display = 'none';
+                            showRecognitionResult(result);
                     alert('上传失败: ' + data.msg);
                 }
             })
             .catch(error => {
                 progressContainer.style.display = 'none';
+                            showRecognitionResult(result);
                 console.error('上传错误:', error);
                 alert('上传失败，请重试');
             });
+        }
+        
+        // 轮询OCR任务状态
+        function pollOCRTaskStatus(taskId, receiptImage, interval = 2000, maxAttempts = 300) {
+            let attempts = 0;
+            
+            const progressContainer = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('progressText');
+            
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`/api/task/${taskId}`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('获取任务状态失败');
+                    }
+                    
+                    const result = await response.json();
+                    attempts++;
+                    
+                    // 更新进度信息
+                    let progressPercent = Math.min(Math.round((attempts / maxAttempts) * 90), 90);
+                    
+                    switch (result.status) {
+                        case 'completed':
+                            // OCR识别完成
+                            progressText.textContent = 'AI识别完成，正在处理结果...';
+                            progressContainer.style.display = 'none';
+                            showRecognitionResult(result);
+                            return;
+                            
+                        case 'failed':
+                            // OCR识别失败
+                            progressContainer.style.display = 'none';
+                            alert('AI识别失败: ' + (result.error || '请重试'));
+                            return;
+                            
+                        case 'processing':
+                            // 识别中
+                            progressPercent = Math.min(40 + Math.round((attempts / maxAttempts) * 50), 90);
+                            progressText.textContent = `AI正在识别中 (${progressPercent}%)...`;
+                            break;
+                            
+                        case 'pending':
+                            // 等待处理
+                            progressText.textContent = `等待AI处理中 (${progressPercent}%)...`;
+                            break;
+                    }
+                    // 达到最大尝试次数
+                    if (attempts >= maxAttempts) {
+                        progressContainer.style.display = 'none';
+                        alert('AI识别超时，请重试');
+                        return;
+                    }
+                    
+                    setTimeout(checkStatus, interval);
+                    
+                } catch (error) {
+                    console.error('轮询OCR任务状态失败:', error);
+                    progressContainer.style.display = 'none';
+                    alert('检查识别状态失败，请重试');
+                }
+            };
+            
+            // 开始轮询
+            checkStatus();
         }
 
         // 显示AI识别结果

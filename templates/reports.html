@@ -585,7 +585,7 @@
             // 更新按钮状态
             generateBtn.disabled = true;
             generateBtn.classList.add('loading');
-            generateBtn.innerHTML = '<div class="loading-spinner"></div><span>AI正在分析您的旅行数据...</span>';
+            generateBtn.innerHTML = '<div class="loading-spinner"></div><span>正在提交任务...</span>';
             
             // 清除之前的错误信息
             errorMessage.innerHTML = '';
@@ -602,23 +602,175 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    currentReport = data;
-                    displayReport(data.report);
-                    showSuccess('旅行报告生成成功！');
+                    // 显示任务已提交消息
+                    showMessage('旅行报告生成中，请稍候...', 'info');
+                    
+                    // 开始轮询任务状态
+                    pollReportTaskStatus(data.task_id);
                 } else {
-                    showError(data.msg || '生成报告失败');
+                    showError(data.error || '生成失败，请重试');
+                    resetGenerateButton();
                 }
             })
             .catch(error => {
                 console.error('生成报告失败:', error);
-                showError('生成报告失败，请检查网络连接并重试');
-            })
-            .finally(() => {
-                // 恢复按钮状态
-                generateBtn.disabled = false;
-                generateBtn.classList.remove('loading');
-                generateBtn.innerHTML = '<i class="fas fa-magic"></i><span>生成我的旅行报告</span>';
+                showError('网络错误，请检查连接并重试');
+                resetGenerateButton();
             });
+        }
+        
+        // 轮询报告生成任务状态
+        function pollReportTaskStatus(taskId, interval = 3000, maxAttempts = 100) {
+            let attempts = 0;
+            
+            // 状态消息元素
+            const statusElement = document.createElement('div');
+            statusElement.className = 'task-status-message';
+            statusElement.style = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--apple-system-background);
+                border: 1px solid var(--apple-separator);
+                border-radius: 12px;
+                padding: 16px 24px;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+            `;
+            statusElement.innerHTML = `
+                <div class="loading-spinner" style="width: 20px; height: 20px;"></div>
+                <span style="color: var(--apple-label);">正在分析您的旅行数据 (0%)...</span>
+            `;
+            document.body.appendChild(statusElement);
+            
+            const updateProgress = (percent, message) => {
+                const span = statusElement.querySelector('span');
+                if (span) {
+                    span.textContent = `${message} (${percent}%)...`;
+                }
+            };
+            
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`/api/task/${taskId}`, {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('获取任务状态失败');
+                    }
+                    
+                    const result = await response.json();
+                    attempts++;
+                    
+                    // 更新进度百分比和消息
+                    let progressPercent = Math.min(Math.round((attempts / maxAttempts) * 80), 80);
+                    let progressMessage = '正在分析您的旅行数据';
+                    
+                    // 根据任务状态处理
+                    switch (result.status) {
+                        case 'completed':
+                            // 成功完成
+                            updateProgress(100, '报告生成完成');
+                            setTimeout(() => {
+                                document.body.removeChild(statusElement);
+                                currentReport = result;
+                                displayReport(result.report);
+                                showSuccess('旅行报告生成成功！');
+                                resetGenerateButton();
+                            }, 800);
+                            return;
+                            
+                        case 'failed':
+                            // 任务失败
+                            document.body.removeChild(statusElement);
+                            showError(result.error || '生成失败，请重试');
+                            resetGenerateButton();
+                            return;
+                            
+                        case 'processing':
+                            // 处理中，进度稍微更快一些
+                            progressPercent = Math.min(30 + Math.round((attempts / maxAttempts) * 50), 85);
+                            progressMessage = 'AI正在生成您的旅行报告';
+                            updateProgress(progressPercent, progressMessage);
+                            break;
+                            
+                        case 'pending':
+                            // 等待处理
+                            progressMessage = '任务等待处理中';
+                            updateProgress(progressPercent, progressMessage);
+                            break;
+                    }
+                    
+                    // 达到最大尝试次数
+                    if (attempts >= maxAttempts) {
+                        document.body.removeChild(statusElement);
+                        showError('生成报告超时，请重试');
+                        resetGenerateButton();
+                        return;
+                    }
+                    
+                    // 继续轮询
+                    setTimeout(checkStatus, interval);
+                    
+                } catch (error) {
+                    console.error('轮询任务状态失败:', error);
+                    document.body.removeChild(statusElement);
+                    showError('检查任务状态失败，请重试');
+                    resetGenerateButton();
+                }
+            };
+            
+            // 开始轮询
+            checkStatus();
+        }
+        
+        // 重置生成按钮状态
+        function resetGenerateButton() {
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('loading');
+            generateBtn.innerHTML = '<i class="fas fa-magic"></i><span>生成我的旅行报告</span>';
+        }
+        
+        // 显示消息的通用函数
+        function showMessage(message, type = 'info') {
+            const errorDiv = document.getElementById('errorMessage');
+            let className = 'info-message';
+            let icon = 'fas fa-info-circle';
+            
+            if (type === 'error') {
+                className = 'error-message';
+                icon = 'fas fa-exclamation-triangle';
+            } else if (type === 'success') {
+                className = 'success-message';
+                icon = 'fas fa-check-circle';
+            }
+            
+            errorDiv.innerHTML = `<div class="${className}"><i class="${icon}"></i> ${message}</div>`;
+            
+            // 如果是成功信息，3秒后自动清除
+            if (type === 'success') {
+                setTimeout(() => {
+                    errorDiv.innerHTML = '';
+                }, 3000);
+            }
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+        
+        // 显示成功信息
+        function showSuccess(message) {
+            showMessage(message, 'success');
         }
         
         // 显示报告内容
@@ -1029,23 +1181,6 @@
         function closeShareModal() {
             const modal = document.getElementById('shareModal');
             if (modal) modal.remove();
-        }
-        
-        // 显示错误信息
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
-        }
-        
-        // 显示成功信息
-        function showSuccess(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.innerHTML = `<div class="success-message"><i class="fas fa-check-circle"></i> ${message}</div>`;
-            
-            // 3秒后自动清除成功信息
-            setTimeout(() => {
-                errorDiv.innerHTML = '';
-            }, 3000);
         }
         
         // 渲染用户信息框

@@ -1015,7 +1015,7 @@ class PlanDetailPage {
                     const data = await response.json();
                     this.showMessage(data.msg || '旅行计划已删除', 'success');
                 } else {
-                    this.showMessage('旅行计划已删除', 'success');
+                this.showMessage('旅行计划已删除', 'success');
                 }
                 
                 // 跳转到计划列表页
@@ -1028,7 +1028,7 @@ class PlanDetailPage {
                 
                 if (contentType && contentType.includes('application/json')) {
                     try {
-                        const data = await response.json();
+                const data = await response.json();
                         errorMessage = data.msg || data.message || `删除失败 (${response.status})`;
                     } catch (jsonError) {
                         console.error('解析错误响应JSON失败:', jsonError);

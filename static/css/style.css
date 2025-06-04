@@ -1809,12 +1809,102 @@ textarea.form-control {
 }
 
 .btn-disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    pointer-events: none;
+    background-color: #ccc !important;
+    cursor: not-allowed !important;
 }
 
 .btn-outline.btn-disabled {
-    border-color: var(--divider-color);
+    color: #ccc !important;
+    border-color: #ccc !important;
+}
+
+/* 预算相关样式 */
+.budget-breakdown-section {
+    background: var(--surface-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid var(--divider-color);
+}
+
+.budget-breakdown-section h4 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.budget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.budget-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--background-color);
+    border-radius: 8px;
+    border: 1px solid var(--divider-color);
+    transition: all 0.2s ease;
+}
+
+.budget-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.budget-item span:first-child {
     color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.budget-item span:last-child {
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.tag-danger {
+    background-color: rgba(255, 59, 48, 0.1);
+    color: #FF3B30;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+.budget-notice {
+    margin-top: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* 预算状态指示器 */
+.plan-meta .tag {
+    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.plan-meta .tag i {
+    font-size: 12px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .budget-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .budget-item {
+        padding: 10px 12px;
+    }
+    
+    .budget-breakdown-section {
+        padding: 16px;
+        margin: 16px 0;
+    }
 } 

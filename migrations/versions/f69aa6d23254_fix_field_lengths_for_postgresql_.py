@@ -121,7 +121,7 @@ def upgrade():
                        type_=sa.String(1000),  # 增加图片路径长度
                        existing_nullable=True)
     except:
-        pass
+    pass
 
 
 def downgrade():
