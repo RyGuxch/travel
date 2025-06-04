@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ note.title }} - 游记详情 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+        .note-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .note-header {
+            margin-bottom: 24px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 16px;
+        }
+        .note-title {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .note-meta {
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 14px;
+        }
+        .note-time {
+            font-style: italic;
+        }
+        .note-plan {
+            background-color: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .note-plan a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .note-content {
+            line-height: 1.8;
+            color: #333;
+            font-size: 1.05em;
+        }
+        .note-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        .note-actions {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+        }
+        /* 访问类型信息样式 */
+        .access-info {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+            border: 1px solid #d0e2ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+        
+        .access-info.owner {
+            background: linear-gradient(135deg, #e8f5e8 0%, #d4f1d4 100%);
+            border-color: #b3d9b3;
+            color: #1b5e20;
+        }
+        
+        .access-info.public-shared {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b3 100%);
+            border-color: #ffcc80;
+            color: #e65100;
+        }
+        
+        .access-info.friend-shared,
+        .access-info.friend-access {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+            border-color: #ce93d8;
+            color: #4a148c;
+        }
+        
+        .access-info.private-shared {
+            background: linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%);
+            border-color: #d0d0d0;
+            color: #424242;
+        }
+        
+        .access-info-icon {
+            font-size: 18px;
+            min-width: 18px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes" class="active">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+    
+    <div class="main-container">
+        <div class="note-container">
+            <div class="note-header">
+                <h1 class="note-title">{{ note.title }}</h1>
+                <div class="note-meta">
+                    <div class="note-time">创建于 {{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                    <div class="note-author">作者: {{ plan.user.username }}</div>
+                </div>
+            </div>
+            
+            <div class="note-plan">
+                <i class="fas fa-map-marked-alt"></i> 来自旅行计划: {{ plan.title }}
+            </div>
+            
+            <!-- 访问类型信息 -->
+            {% if access_type %}
+            <div class="access-info {{ access_type }}">
+                {% if access_type == 'owner' %}
+                    <i class="access-info-icon fas fa-crown"></i>
+                    <div>
+                        <strong>您是此游记的作者</strong><br>
+                        <small>您可以编辑、分享或删除此游记</small>
+                    </div>
+                {% elif access_type == 'public_shared' %}
+                    <i class="access-info-icon fas fa-globe"></i>
+                    <div>
+                        <strong>公开分享的游记</strong><br>
+                        <small>由 {{ shared_by }} 分享到动态，所有人可见</small>
+                    </div>
+                {% elif access_type == 'friend_shared' %}
+                    <i class="access-info-icon fas fa-users"></i>
+                    <div>
+                        <strong>好友分享的游记</strong><br>
+                        <small>由 {{ shared_by }} 分享到动态，仅好友可见</small>
+                    </div>
+                {% elif access_type == 'private_shared' %}
+                    <i class="access-info-icon fas fa-user-lock"></i>
+                    <div>
+                        <strong>私密分享的游记</strong><br>
+                        <small>由 {{ shared_by }} 分享，仅限作者查看</small>
+                    </div>
+                {% elif access_type == 'friend_access' %}
+                    <i class="access-info-icon fas fa-heart"></i>
+                    <div>
+                        <strong>好友的游记</strong><br>
+                        <small>来自您的好友 {{ owner_name }}，您可以查看此内容</small>
+                    </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="note-content" id="noteContent">
+                <!-- 这里将显示游记内容 -->
+            </div>
+            
+            <div class="note-actions">
+                <a href="/notes" class="btn btn-outline"><i class="fas fa-arrow-left"></i> 返回游记列表</a>
+                <div>
+                    {% if is_owner %}
+                    <button class="btn btn-outline" onclick="shareToMoments({{ note.id }})">
+                        <i class="fas fa-share-alt"></i> 分享到动态
+                    </button>
+                    <button class="btn btn-primary" onclick="editNote({{ note.id }})">
+                        <i class="fas fa-pen-to-square"></i> 编辑游记
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script>
+        // 渲染Markdown内容
+        document.addEventListener('DOMContentLoaded', function() {
+            const content = `{{ note.content|safe }}`;
+            document.getElementById('noteContent').innerHTML = marked.parse(content);
+        });
+        
+        // 渲染用户信息框
+        function renderUserBox() {
+            try {
+                const navUserBox = document.getElementById('navUserBox');
+                if (!navUserBox) {
+                    console.error('找不到用户信息框元素');
+                    return;
+                }
+
+                fetch('/api/userinfo', {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('获取用户信息失败');
+                    return r.json();
+                })
+                .then(data => {
+                    if (data.logged_in) {
+                        navUserBox.innerHTML = `
+                            <div style="display:flex; align-items:center;">
+                                <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
+                                <span>${data.username}</span>
+                                <button class='btn btn-small btn-outline' style="margin-left:12px;" onclick='logoutUser()'>登出</button>
+                            </div>
+                        `;
+                    } else {
+                        navUserBox.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
+                    }
+                })
+                .catch(err => {
+                    console.error('获取用户信息失败:', err);
+                    navUserBox.innerHTML = `<button class='btn btn-small btn-primary' onclick='window.location.reload()'>重试</button>`;
+                });
+            } catch (error) {
+                console.error('渲染用户信息框失败:', error);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderUserBox();
+        });
+        
+        // 编辑游记功能
+        window.editNote = function(noteId) {
+            fetch(`/api/note/${noteId}`).then(r=>r.json()).then(note=>{
+                showNoteModal(note);
+            });
+        }
+        
+        function showNoteModal(note) {
+            let modal = document.createElement('div');
+            modal.id = 'noteModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;';
+            modal.innerHTML = `
+            <div style='background:#fff;border-radius:16px;max-width:800px;width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);max-height:96vh;overflow:auto;box-sizing:border-box;'>
+                <h3 style='margin-bottom:12px;'>编辑游记</h3>
+                <input id='noteTitle' class='form-input' style='margin-bottom:12px;' placeholder='游记标题' value='${note.title}'>
+                <textarea id='noteEditor' style='min-height:300px;'>${note.content}</textarea>
+                <div style='margin:16px 0 0 0;text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeNoteModal()' style="margin-right:8px;">取消</button>
+                    <button class='btn btn-primary' id='saveNoteBtn'>保存</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            
+            setTimeout(()=>{
+                window.notesMDE = new EasyMDE({
+                    element: document.getElementById('noteEditor'),
+                    autoDownloadFontAwesome: false,
+                    spellChecker: false,
+                    status: false,
+                    minHeight: '300px',
+                    toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "link", "image", "table", "|", "preview", "side-by-side", "fullscreen", "|", "guide"]
+                });
+            }, 10);
+            
+            document.getElementById('saveNoteBtn').onclick = function() {
+                const title = document.getElementById('noteTitle').value.trim();
+                const content = window.notesMDE.value();
+                if(!title) { alert('请输入标题'); return; }
+                
+                fetch(`/api/note/${note.id}`, {
+                    method:'PUT',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({title, content, media:[]})
+                }).then(r=>r.json()).then(d=>{
+                    if(d.success) { 
+                        closeNoteModal(); 
+                        location.reload(); 
+                    }
+                    else alert('保存失败');
+                });
+            };
+        }
+        
+        function closeNoteModal() {
+            let modal = document.getElementById('noteModal');
+            if(modal) { modal.remove(); }
+        }
+        
+        // 分享游记到动态功能
+        window.shareToMoments = function(noteId) {
+            fetch(`/api/note/${noteId}`).then(r=>r.json()).then(note=>{
+                showShareModal(note);
+            });
+        }
+        
+        function showShareModal(note) {
+            let modal = document.createElement('div');
+            modal.id = 'shareModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;';
+            modal.innerHTML = `
+            <div style='background:#fff;border-radius:16px;max-width:520px;width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);max-height:96vh;overflow:auto;box-sizing:border-box;'>
+                <h3 style='margin-bottom:12px;'>分享到动态</h3>
+                <div style="margin-bottom:16px;">
+                    <div style="font-weight:bold;margin-bottom:4px;">游记标题：</div>
+                    <div style="background:#f5f5f5;padding:8px;border-radius:8px;">${note.title}</div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <textarea id="shareContent" class="form-input" placeholder="添加分享文字..." style="width:100%;min-height:100px;margin-bottom:8px;">#旅行游记# 分享我的游记：《${note.title}》</textarea>
+                    <div style="color:#888;font-size:13px;">游记内容将作为摘要随动态一起发布</div>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;margin-bottom:8px;">可见性：</label>
+                    <select id="shareVisibility" class="form-input" style="width:100%;">
+                        <option value="public">所有人可见</option>
+                        <option value="friends">仅好友可见</option>
+                        <option value="private">仅自己可见</option>
+                    </select>
+                </div>
+                <div style='margin:20px 0 0 0;text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeShareModal()' style="margin-right:8px;">取消</button>
+                    <button class='btn btn-primary' id='confirmShareBtn'>发布到动态</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            
+            // 截取游记内容前200个字符作为摘要
+            const contentPreview = note.content.length > 200 ? 
+                note.content.substring(0, 200) + '...' : 
+                note.content;
+                
+            document.getElementById('confirmShareBtn').onclick = function() {
+                const content = document.getElementById('shareContent').value.trim();
+                const visibility = document.getElementById('shareVisibility').value;
+                
+                if(!content) {
+                    alert('请输入分享内容');
+                    return;
+                }
+                
+                // 发布到动态的内容格式
+                const momentContent = `${content}\n\n---\n**游记摘要**：${contentPreview}`;
+                
+                // 调用API创建新动态
+                fetch('/api/moments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        content: momentContent,
+                        media: [], // 可以考虑将游记中的图片也一起分享
+                        visibility: visibility,
+                        note_id: note.id, // 添加关联的游记ID
+                        note_title: note.title
+                    })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if(result.success) {
+                        closeShareModal();
+                        
+                        // 显示成功提示
+                        const successMsg = document.createElement('div');
+                        successMsg.style = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#34C759;color:white;border-radius:8px;padding:12px 24px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;display:flex;align-items:center;gap:8px;';
+                        successMsg.innerHTML = `
+                            <i class="fas fa-check-circle"></i> 游记已成功分享到动态
+                        `;
+                        document.body.appendChild(successMsg);
+                        
+                        setTimeout(() => {
+                            successMsg.style.opacity = '0';
+                            successMsg.style.transition = 'opacity 0.5s, transform 0.5s';
+                            successMsg.style.transform = 'translateX(-50%) translateY(-10px)';
+                            setTimeout(() => {
+                                successMsg.remove();
+                            }, 500);
+                        }, 2000);
+                    } else {
+                        alert('分享失败: ' + (result.msg || '未知错误'));
+                    }
+                })
+                .catch(error => {
+                    console.error('分享失败:', error);
+                    alert('分享失败，请稍后重试');
+                });
+            };
+        }
+        
+        function closeShareModal() {
+            let modal = document.getElementById('shareModal');
+            if(modal) { 
+                modal.remove(); 
+            }
+        }
+        
+        // 登出用户
+        window.logoutUser = function() {
+            fetch('/api/logout', {
+                method:'POST',
+                credentials: 'include'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    alert('登出失败: ' + (data.msg || '未知错误'));
+                }
+            })
+            .catch(err => {
+                console.error('登出失败:', err);
+                alert('登出失败，请重试');
+            });
+        };
+        
+        // 显示登录模态框
+        window.showLoginModal = function() {
+            window.location.href = '/?login_required=1';
+        };
+    </script>
+</body>
+</html> 

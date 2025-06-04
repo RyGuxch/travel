@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>与{{ friend.username }}聊天 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+            min-height: 500px;
+        }
+        
+        .chat-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .chat-header .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #4285f4;
+            color: white;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+        }
+        
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-break: break-word;
+        }
+        
+        .message-time {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+        
+        .message-self {
+            align-self: flex-end;
+            background-color: #dcf8c6;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message-other {
+            align-self: flex-start;
+            background-color: #f1f0f0;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .chat-input {
+            padding: 16px;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+            align-items: flex-end;
+        }
+        
+        .chat-input textarea {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            resize: none;
+            outline: none;
+            min-height: 20px;
+            max-height: 120px;
+            line-height: 1.4;
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+        
+        .chat-input textarea:focus {
+            border-color: #4285f4;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: #888;
+        }
+        
+        .send-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #4285f4;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            outline: none;
+        }
+        
+        .send-btn:hover {
+            background-color: #3b78e7;
+        }
+        
+        .send-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* 动画效果 */
+        @keyframes slideInRight {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideInLeft {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .message-self {
+            animation: slideInRight 0.3s ease;
+        }
+        
+        .message-other {
+            animation: slideInLeft 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends" class="active">好友</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <div class="card">
+            <div class="chat-container" data-friend-id="{{ friend.id }}">
+                <div class="chat-header">
+                    <div class="avatar">{{ friend.username[0].upper() }}</div>
+                    <div>
+                        <h3>{{ friend.username }}</h3>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="empty-state" id="emptyState">
+                        <p>还没有聊天记录</p>
+                        <p>开始和{{ friend.username }}聊天吧</p>
+                    </div>
+                    <!-- 消息将在这里动态加载 -->
+                </div>
+                
+                <div class="chat-input">
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="输入消息..." 
+                        rows="1"
+                        maxlength="500"
+                    ></textarea>
+                    <button id="sendBtn" class="send-btn" disabled>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 20V4L22 12L3 20Z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取好友ID
+            const FRIEND_ID = parseInt(document.querySelector('.chat-container').dataset.friendId);
+            
+            // 初始化
+            renderUserBox();
+            
+            // 获取聊天记录
+            loadChatMessages();
+            
+            // 设置输入框自动调整高度
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+                
+                // 启用/禁用发送按钮
+                document.getElementById('sendBtn').disabled = !this.value.trim();
+            });
+            
+            // 回车发送消息（Shift+Enter换行）
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // 发送按钮点击事件
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            
+            // 定期检查新消息
+            setInterval(checkNewMessages, 5000);
+        });
+        
+        // 显示用户信息框
+        function renderUserBox() {
+            fetch('/api/userinfo', {
+                credentials: 'include'
+            }).then(r=>r.json()).then(data=>{
+                const box = document.getElementById('navUserBox');
+                if(data.logged_in) {
+                    box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+                } else {
+                    box.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
+                }
+            });
+        }
+        
+        // 登出用户
+        function logoutUser() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/'; // 登出后跳转到首页
+            });
+        }
+        
+        // 加载聊天记录
+        function loadChatMessages() {
+            const friendId = parseInt(document.querySelector('.chat-container').dataset.friendId);
+            fetch(`/api/messages/${friendId}`, {
+                credentials: 'include'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('获取聊天记录失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.messages.length > 0) {
+                    renderMessages(data.messages);
+                    // 隐藏空状态
+                    document.getElementById('emptyState').style.display = 'none';
+                    // 滚动到底部
+                    scrollToBottom();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showErrorMessage('获取聊天记录失败');
+            });
+        }
+        
+        // 渲染消息列表
+        function renderMessages(messages) {
+            const chatMessages = document.getElementById('chatMessages');
+            
+            messages.forEach(message => {
+                addMessageToChat(message);
+            });
+        }
+        
+        // 向聊天区域添加单条消息
+        function addMessageToChat(message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageElement = document.createElement('div');
+            
+            messageElement.className = message.is_self ? 'message message-self' : 'message message-other';
+            messageElement.innerHTML = `
+                <div>${message.content.replace(/\n/g, '<br>')}</div>
+                <div class="message-time">${message.timestamp}</div>
+            `;
+            
+            chatMessages.appendChild(messageElement);
+            
+            // 隐藏空状态
+            document.getElementById('emptyState').style.display = 'none';
+        }
+        
+        // 发送消息
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content) return;
+            
+            // 禁用发送按钮
+            document.getElementById('sendBtn').disabled = true;
+            
+            const friendId = parseInt(document.querySelector('.chat-container').dataset.friendId);
+            fetch('/api/send-message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    receiver_id: friendId,
+                    content: content
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 清空输入框
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    
+                    // 添加消息到聊天区域
+                    addMessageToChat(data.message);
+                    
+                    // 滚动到底部
+                    scrollToBottom();
+                } else {
+                    showErrorMessage(data.msg || '发送失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showErrorMessage('发送失败，请检查网络连接');
+            })
+            .finally(() => {
+                // 重新启用发送按钮
+                document.getElementById('sendBtn').disabled = !messageInput.value.trim();
+            });
+        }
+        
+        // 滚动到底部
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // 检查新消息
+        function checkNewMessages() {
+            // 避免频繁请求，只在当前页面活跃时检查
+            if (document.visibilityState === 'visible') {
+                const lastMessage = document.querySelector('.chat-messages .message:last-child');
+                const lastTimestamp = lastMessage ? lastMessage.querySelector('.message-time').textContent : null;
+                
+                const friendId = parseInt(document.querySelector('.chat-container').dataset.friendId);
+                fetch(`/api/messages/${friendId}`, {
+                    credentials: 'include'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.messages.length > 0) {
+                        const existingCount = document.querySelectorAll('.chat-messages .message').length;
+                        
+                        // 如果服务器返回的消息数量大于当前显示的数量，说明有新消息
+                        if (data.messages.length > existingCount) {
+                            const newMessages = data.messages.slice(existingCount);
+                            renderMessages(newMessages);
+                            scrollToBottom();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking new messages:', error);
+                });
+            }
+        }
+        
+        // 显示错误消息
+        function showErrorMessage(message) {
+            // 创建消息元素
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message-toast message-error';
+            messageEl.textContent = message;
+            messageEl.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 24px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 10000;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+                background-color: #FF3B30;
+            `;
+            
+            document.body.appendChild(messageEl);
+            
+            // 显示动画
+            setTimeout(() => {
+                messageEl.style.transform = 'translateX(0)';
+            }, 10);
+            
+            // 自动隐藏
+            setTimeout(() => {
+                messageEl.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    document.body.removeChild(messageEl);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

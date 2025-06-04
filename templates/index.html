@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Agent - 智能旅行助手</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">全部游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <!-- 欢迎区域 -->
+        <div class="card">
+            <h1 class="title-large">智能旅行规划助手</h1>
+            <p class="subtitle">让AI为您定制专属的旅行方案，轻松规划美好旅程</p>
+        </div>
+
+        <div class="grid-2">
+            <!-- 计划生成表单 -->
+            <div class="card">
+                <h2 class="title-medium">创建新的旅行计划</h2>
+                
+                <form id="planForm">
+                    <div class="form-group">
+                        <label class="form-label">目的地</label>
+                        <input type="text" id="destinations" class="form-input" 
+                               placeholder="请输入目的地，多个地点用逗号分隔" required>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">行程天数</label>
+                            <input type="number" id="days" class="form-input" 
+                                   min="1" max="30" value="3" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">旅行主题</label>
+                            <select id="theme" class="form-input" onchange="document.getElementById('themeCustomBox').style.display = this.value === '自定义' ? 'block' : 'none'">
+                                <option value="观光">观光旅游</option>
+                                <option value="文化">文化体验</option>
+                                <option value="自然">自然风光</option>
+                                <option value="美食">美食之旅</option>
+                                <option value="休闲">休闲度假</option>
+                                <option value="冒险">冒险探索</option>
+                                <option value="自定义">自定义</option>
+                            </select>
+                            <div id="themeCustomBox" style="display:none;margin-top:8px;">
+                                <input type="text" id="themeCustom" class="form-input" placeholder="请输入自定义主题">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">预算下限（元）</label>
+                            <input type="number" id="budgetMin" class="form-input" 
+                                   min="0" value="1000">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">预算上限（元）</label>
+                            <input type="number" id="budgetMax" class="form-input" 
+                                   min="0" value="5000">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">出行方式</label>
+                        <select id="transport" class="form-input" onchange="document.getElementById('transportCustomBox').style.display = this.value === '自定义' ? 'block' : 'none'">
+                            <option value="高铁">高铁</option>
+                            <option value="飞机">飞机</option>
+                            <option value="自驾">自驾</option>
+                            <option value="汽车">长途汽车</option>
+                            <option value="步行">步行</option>
+                            <option value="骑行">骑行</option>
+                            <option value="公交">公交</option>
+                            <option value="混合">多种方式</option>
+                            <option value="自定义">自定义</option>
+                        </select>
+                        <div id="transportCustomBox" style="display:none;margin-top:8px;">
+                            <input type="text" id="transportCustom" class="form-input" placeholder="请输入自定义出行方式">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">出行日期</label>
+                        <input type="date" id="startDate" class="form-input" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="generateBtn">
+                        <span id="btnText">🤖 AI生成旅行方案</span>
+                        <span id="btnLoading" class="hidden">
+                            <div class="spinner"></div>
+                            正在生成...
+                        </span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- 计划列表 -->
+            <div class="card">
+                <h2 class="title-medium">我的旅行计划</h2>
+                <div id="plansList">
+                    <p class="subtitle">正在加载...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 生成结果展示 -->
+        <div id="resultSection" class="card hidden">
+            <h2 class="title-medium">生成的旅行方案</h2>
+            <div id="planResult"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    // 提交时优先取自定义内容
+    document.getElementById('planForm').addEventListener('submit', function(e) {
+        // 检查登录状态
+        fetch('/api/userinfo', {
+            credentials: 'include'
+        }).then(r=>r.json()).then(data=>{
+            if(!data.logged_in) {
+                e.preventDefault();
+                showLoginModal('请先登录后再生成旅行计划');
+                return false;
+            }
+            
+            const themeSel = document.getElementById('theme');
+            const themeCustom = document.getElementById('themeCustom').value.trim();
+            if(themeSel.value === '自定义' && !themeCustom) {
+                alert('请输入自定义旅行主题');
+                e.preventDefault();
+                return false;
+            }
+            const transportSel = document.getElementById('transport');
+            const transportCustom = document.getElementById('transportCustom').value.trim();
+            if(transportSel.value === '自定义' && !transportCustom) {
+                alert('请输入自定义出行方式');
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // 阻止表单默认提交，等待异步检查完成
+        e.preventDefault();
+        return false;
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var dateInput = document.getElementById('startDate');
+        if (dateInput && !dateInput.value) {
+            var today = new Date();
+            var yyyy = today.getFullYear();
+            var mm = String(today.getMonth() + 1).padStart(2, '0');
+            var dd = String(today.getDate()).padStart(2, '0');
+            dateInput.value = yyyy + '-' + mm + '-' + dd;
+        }
+        
+        // 检查URL参数，如果需要登录则显示登录窗口
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('login_required') === '1') {
+            showLoginModal('请登录后再访问此页面');
+        }
+    });
+
+    function renderUserBox() {
+        fetch('/api/userinfo', {
+            credentials: 'include'
+        }).then(r=>r.json()).then(data=>{
+            const box = document.getElementById('navUserBox');
+            if(data.logged_in) {
+                box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+            } else {
+                box.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
+            }
+        });
+    }
+    
+    function showLoginModal(message) {
+        let modal = document.getElementById('loginModal');
+        if(!modal) {
+            modal = document.createElement('div');
+            modal.id = 'loginModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.18);z-index:9999;display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = `
+            <div id='loginBox' style='background:#fff;border-radius:16px;max-width:340px;width:92vw;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);'>
+                <h3 style='margin-bottom:18px;'>用户登录</h3>
+                ${message ? `<div style="color:#d00;margin-bottom:16px;padding:8px;background:#fff8f8;border-radius:6px;font-size:14px;">${message}</div>` : ''}
+                <input id='loginUsername' class='form-input' style='margin-bottom:12px;' placeholder='用户名'>
+                <input id='loginPassword' class='form-input' type='password' style='margin-bottom:18px;' placeholder='密码'>
+                <div style='text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeLoginModal()'>取消</button>
+                    <button class='btn btn-primary' onclick='loginUser()'>登录</button>
+                    <button class='btn btn-link' style='margin-left:8px;' onclick='showRegisterBox()'>注册</button>
+                </div>
+                <div id='loginMsg' style='color:#d00;font-size:13px;margin-top:10px;'></div>
+            </div>`;
+            document.body.appendChild(modal);
+        } else if (message) {
+            // 如果弹窗已存在但需要显示错误信息
+            const loginBox = document.getElementById('loginBox');
+            if (loginBox && !document.getElementById('loginErrorMsg')) {
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'loginErrorMsg';
+                errorDiv.style = 'color:#d00;margin-bottom:16px;padding:8px;background:#fff8f8;border-radius:6px;font-size:14px;';
+                errorDiv.textContent = message;
+                loginBox.insertBefore(errorDiv, loginBox.firstChild.nextSibling);
+            }
+        }
+        modal.style.display = 'flex';
+    }
+    function showRegisterBox() {
+        const box = document.getElementById('loginBox');
+        if(box) {
+            box.innerHTML = `
+                <h3 style='margin-bottom:18px;'>用户注册</h3>
+                <input id='regUsername' class='form-input' style='margin-bottom:12px;' placeholder='用户名'>
+                <input id='regPassword' class='form-input' type='password' style='margin-bottom:12px;' placeholder='密码'>
+                <input id='regPassword2' class='form-input' type='password' style='margin-bottom:18px;' placeholder='重复密码'>
+                <div style='text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeLoginModal()'>取消</button>
+                    <button class='btn btn-primary' onclick='registerUser()'>注册</button>
+                    <button class='btn btn-link' style='margin-left:8px;' onclick='showLoginBox()'>返回登录</button>
+                </div>
+                <div id='loginMsg' style='color:#d00;font-size:13px;margin-top:10px;'></div>
+            `;
+        }
+    }
+    function showLoginBox() {
+        const box = document.getElementById('loginBox');
+        if(box) {
+            box.innerHTML = `
+                <h3 style='margin-bottom:18px;'>用户登录</h3>
+                <input id='loginUsername' class='form-input' style='margin-bottom:12px;' placeholder='用户名'>
+                <input id='loginPassword' class='form-input' type='password' style='margin-bottom:18px;' placeholder='密码'>
+                <div style='text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeLoginModal()'>取消</button>
+                    <button class='btn btn-primary' onclick='loginUser()'>登录</button>
+                    <button class='btn btn-link' style='margin-left:8px;' onclick='showRegisterBox()'>注册</button>
+                </div>
+                <div id='loginMsg' style='color:#d00;font-size:13px;margin-top:10px;'></div>
+            `;
+        }
+    }
+    function closeLoginModal() {
+        let modal = document.getElementById('loginModal');
+        if(modal) modal.remove();
+    }
+    function loginUser() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        fetch('/api/login', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials: 'include',
+            body:JSON.stringify({username,password})
+        }).then(r=>r.json()).then(d=>{
+            if(d.success) { 
+                closeLoginModal(); 
+                // 如果URL中有login_required参数，移除它并重新加载
+                if (window.location.search.includes('login_required=1')) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('login_required');
+                    window.location.href = url.toString();
+                } else {
+                    location.reload(); 
+                }
+            }
+            else document.getElementById('loginMsg').textContent = d.msg||'登录失败';
+        });
+    }
+    function logoutUser() {
+        fetch('/api/logout', {
+            method:'POST',
+            credentials: 'include'
+        }).then(()=>location.reload());
+    }
+    function registerUser() {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const password2 = document.getElementById('regPassword2').value;
+        if(!username || !password) { document.getElementById('loginMsg').textContent = '用户名和密码不能为空'; return; }
+        if(password !== password2) { document.getElementById('loginMsg').textContent = '两次密码不一致'; return; }
+        fetch('/api/register', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials: 'include',
+            body:JSON.stringify({username,password})
+        }).then(r=>r.json()).then(d=>{
+            if(d.success) {
+                // 注册成功自动登录
+                fetch('/api/login', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    credentials: 'include',
+                    body:JSON.stringify({username,password})
+                }).then(r=>r.json()).then(d2=>{
+                    if(d2.success) { 
+                        closeLoginModal(); 
+                        // 如果URL中有login_required参数，移除它并重新加载
+                        if (window.location.search.includes('login_required=1')) {
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('login_required');
+                            window.location.href = url.toString();
+                        } else {
+                            location.reload(); 
+                        }
+                    }
+                    else document.getElementById('loginMsg').textContent = '注册成功但自动登录失败';
+                });
+            } else {
+                document.getElementById('loginMsg').textContent = d.msg||'注册失败';
+            }
+        });
+    }
+    document.addEventListener('DOMContentLoaded', renderUserBox);
+    </script>
+</body>
+</html> 

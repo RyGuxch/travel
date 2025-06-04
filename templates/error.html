@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .error-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+        
+        .error-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+        }
+        
+        .error-message {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 32px;
+            line-height: 1.5;
+            max-width: 500px;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .error-btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .error-btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        
+        .error-btn-primary:hover {
+            background: #0056CC;
+        }
+        
+        .error-btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .error-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="error-container">
+            <div class="error-icon">
+                {% if title == '访问被拒绝' %}
+                🔒
+                {% elif title == '页面不存在' %}
+                🔍
+                {% else %}
+                ⚠️
+                {% endif %}
+            </div>
+            
+            <h1 class="error-title">{{ title }}</h1>
+            <p class="error-message">{{ message }}</p>
+            
+            <div class="error-actions">
+                <a href="/" class="error-btn error-btn-primary">返回首页</a>
+                <a href="javascript:history.back()" class="error-btn error-btn-secondary">返回上页</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简单的用户信息显示
+        function renderUserBox() {
+            fetch('/api/userinfo', {
+                credentials: 'include'
+            }).then(r=>r.json()).then(data=>{
+                const box = document.getElementById('navUserBox');
+                if(data.logged_in) {
+                    box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+                } else {
+                    box.innerHTML = `<button class='btn btn-small btn-primary' onclick='window.location.href="/"'>登录</button>`;
+                }
+            }).catch(()=>{
+                // 如果获取用户信息失败，显示登录按钮
+                const box = document.getElementById('navUserBox');
+                box.innerHTML = `<button class='btn btn-small btn-primary' onclick='window.location.href="/"'>登录</button>`;
+            });
+        }
+        
+        function logoutUser() {
+            fetch('/api/logout', {
+                method:'POST',
+                credentials: 'include'
+            }).then(()=>location.href='/');
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderUserBox();
+        });
+    </script>
+</body>
+</html> 

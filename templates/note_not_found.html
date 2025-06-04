@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游记不存在 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Apple风格设计系统 */
+        :root {
+            --apple-blue: #007AFF;
+            --apple-gray: #8E8E93;
+            --apple-light-gray: #F2F2F7;
+            --apple-dark-gray: #1C1C1E;
+            --apple-red: #FF3B30;
+            --apple-green: #34C759;
+            --apple-orange: #FF9500;
+            --apple-system-background: #FFFFFF;
+            --apple-secondary-background: #F2F2F7;
+            --apple-label: #000000;
+            --apple-secondary-label: #3C3C43;
+            --apple-tertiary-label: #3C3C4399;
+            --apple-separator: #3C3C434A;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --apple-system-background: #000000;
+                --apple-secondary-background: #1C1C1E;
+                --apple-label: #FFFFFF;
+                --apple-secondary-label: #EBEBF5;
+                --apple-tertiary-label: #EBEBF599;
+                --apple-separator: #54545899;
+            }
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: var(--apple-secondary-background);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            color: var(--apple-label);
+        }
+        
+        .error-container {
+            max-width: 375px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        
+        .error-icon-container {
+            width: 120px;
+            height: 120px;
+            background: var(--apple-light-gray);
+            border-radius: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .error-icon-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 59, 48, 0.1) 0%, rgba(255, 149, 0, 0.1) 100%);
+            border-radius: 60px;
+        }
+        
+        .error-icon {
+            font-size: 48px;
+            z-index: 1;
+            position: relative;
+        }
+        
+        .error-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--apple-label);
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+        
+        .error-subtitle {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--apple-secondary-label);
+            margin-bottom: 24px;
+            line-height: 1.4;
+        }
+        
+        .error-message {
+            font-size: 15px;
+            color: var(--apple-secondary-label);
+            margin-bottom: 40px;
+            line-height: 1.5;
+            max-width: 300px;
+        }
+        
+        .error-details {
+            background: rgba(120, 120, 128, 0.12);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 40px;
+            font-size: 13px;
+            color: var(--apple-tertiary-label);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 0.5px solid var(--apple-separator);
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 280px;
+        }
+        
+        .btn {
+            padding: 16px 24px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 17px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+            min-height: 50px;
+            box-sizing: border-box;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0);
+            transition: background 0.2s ease;
+            border-radius: 14px;
+        }
+        
+        .btn:active::before {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-primary {
+            background: var(--apple-blue);
+            color: white;
+            box-shadow: 0 1px 3px rgba(0, 122, 255, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(120, 120, 128, 0.16);
+            color: var(--apple-label);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 0.5px solid var(--apple-separator);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(120, 120, 128, 0.24);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--apple-blue);
+            color: var(--apple-blue);
+        }
+        
+        .btn-outline:hover {
+            background: rgba(0, 122, 255, 0.05);
+        }
+        
+        .emoji-icon {
+            font-size: 1.2em;
+            margin-right: 4px;
+        }
+        
+        /* 导航栏样式优化 */
+        .navbar {
+            background: rgba(248, 248, 248, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 0.5px solid var(--apple-separator);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 44px;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            height: 100%;
+        }
+        
+        .nav-brand a {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--apple-label);
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 24px;
+        }
+        
+        .nav-link {
+            font-size: 15px;
+            color: var(--apple-secondary-label);
+            text-decoration: none;
+            transition: color 0.2s ease;
+            position: relative;
+        }
+        
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--apple-blue);
+        }
+        
+        .error-container {
+            padding-top: 84px; /* 为固定导航栏留空间 */
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .error-container {
+                padding: 64px 20px 40px;
+            }
+            
+            .error-title {
+                font-size: 24px;
+            }
+            
+            .error-subtitle {
+                font-size: 15px;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .error-container > * {
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
+        }
+        
+        .error-icon-container {
+            animation-delay: 0.1s;
+        }
+        
+        .error-title {
+            animation-delay: 0.2s;
+        }
+        
+        .error-subtitle {
+            animation-delay: 0.3s;
+        }
+        
+        .error-message {
+            animation-delay: 0.4s;
+        }
+        
+        .error-details {
+            animation-delay: 0.5s;
+        }
+        
+        .action-buttons {
+            animation-delay: 0.6s;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <a href="/">Travel Agent</a>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">首页</a>
+                <a href="/plans" class="nav-link">我的计划</a>
+                <a href="/notes" class="nav-link active">全部游记</a>
+                <a href="/friends" class="nav-link">好友</a>
+                <a href="/moments" class="nav-link">动态</a>
+                <a href="/expenses" class="nav-link">开销</a>
+                <a href="/about" class="nav-link">关于</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="error-container">
+        <div class="error-icon-container">
+            <div class="error-icon">📝</div>
+        </div>
+        
+        <h1 class="error-title">游记不存在</h1>
+        
+        {% if reason %}
+            {% if "权限" in reason %}
+                <p class="error-subtitle">无权访问</p>
+                <p class="error-message">
+                    您没有权限查看此游记。<br>
+                    该游记可能为私人内容或已被限制访问。
+                </p>
+            {% elif "删除" in reason %}
+                <p class="error-subtitle">内容已删除</p>
+                <p class="error-message">
+                    该游记已被删除或不再可用。<br>
+                    相关的旅行计划可能已被移除。
+                </p>
+            {% else %}
+                <p class="error-subtitle">加载失败</p>
+                <p class="error-message">{{ reason }}</p>
+            {% endif %}
+        {% else %}
+            <p class="error-subtitle">内容不可用</p>
+            <p class="error-message">
+                很抱歉，您要查看的游记无法找到。<br>
+                这可能是因为内容已被删除或访问受限。
+            </p>
+        {% endif %}
+        
+        {% if note_id %}
+        <div class="error-details">
+            <strong>游记ID:</strong> {{ note_id }}
+        </div>
+        {% endif %}
+        
+        <div class="action-buttons">
+            <a href="/notes" class="btn btn-primary">
+                <span class="emoji-icon">📚</span>
+                浏览所有游记
+            </a>
+            <a href="/moments" class="btn btn-outline">
+                <span class="emoji-icon">🌟</span>
+                查看旅行动态
+            </a>
+            <button onclick="history.back()" class="btn btn-secondary">
+                <span class="emoji-icon">←</span>
+                返回上一页
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 自动刷新动态列表（如果是从动态页面跳转过来的）
+        if (document.referrer.includes('/moments')) {
+            setTimeout(() => {
+                if (window.opener && !window.opener.closed) {
+                    try {
+                        // 尝试刷新父窗口的动态列表
+                        window.opener.location.reload();
+                    } catch (e) {
+                        console.log('无法刷新父窗口');
+                    }
+                }
+            }, 1000);
+        }
+        
+        // 添加触觉反馈（在支持的设备上）
+        document.querySelectorAll('.btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (navigator.vibrate) {
+                    navigator.vibrate(10);
+                }
+            });
+        });
+        
+        // 检测深色模式
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        
+        // 监听深色模式变化
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            });
+        }
+    </script>
+</body>
+</html> 

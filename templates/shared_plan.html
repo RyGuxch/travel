@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ plan.title }} - 分享的旅行计划 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+    <!-- 高德地图API -->
+    <script type="text/javascript" async defer src="https://webapi.amap.com/maps?v=2.0&key={{ config.AMAP_WEB_KEY }}&plugin=AMap.Scale,AMap.ToolBar,AMap.Driving"></script>
+    <style>
+        /* 分享页面特有样式 */
+        .shared-notice {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .shared-notice h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .shared-notice p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* 移除编辑按钮等需要权限的功能 */
+        .itinerary-controls {
+            display: none;
+        }
+        
+        .plan-actions {
+            display: none;
+        }
+        
+        /* 隐藏不需要的功能 */
+        #travelNotesSection {
+            display: none;
+        }
+        
+        /* 确保时间线样式与原版一致 */
+        .timeline {
+            position: relative;
+            padding: 0;
+        }
+        
+        .timeline-day {
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--divider-color, #e0e0e0);
+            padding-bottom: 24px;
+        }
+        
+        .timeline-day:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background-color: var(--background-color, #f8f9fa);
+            border-radius: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 18px;
+        }
+        
+        .timeline-items {
+            padding-left: 16px;
+        }
+        
+        .timeline-item {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 16px;
+            background-color: var(--surface-color, #fff);
+            border-radius: 8px;
+            border: 1px solid var(--divider-color, #e0e0e0);
+            transition: all 0.2s ease;
+        }
+        
+        .timeline-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-color: var(--primary-color, #007AFF);
+        }
+        
+        .timeline-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .item-time {
+            flex-shrink: 0;
+            width: 80px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color, #007AFF);
+        }
+        
+        .item-content {
+            flex: 1;
+        }
+        
+        .item-content h4 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .item-content p {
+            margin: 4px 0;
+            color: var(--text-secondary, #7f8c8d);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .item-location {
+            font-size: 14px;
+            color: var(--text-secondary, #7f8c8d);
+            margin: 4px 0;
+        }
+        
+        .item-cost {
+            color: var(--primary-color, #007AFF);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        /* 覆盖原有的activity样式，使用timeline样式 */
+        .activity-item {
+            display: none;
+        }
+        
+        .activity-info {
+            display: none;
+        }
+        
+        .activity-time {
+            display: none;
+        }
+        
+        /* 行动号召区域样式优化 */
+        .cta-section {
+            text-align: center;
+            padding: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px;
+            margin-top: 32px;
+        }
+        
+        .cta-section h3 {
+            margin-bottom: 16px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .cta-section p {
+            margin-bottom: 24px;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        
+        .cta-btn {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s;
+        }
+        
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user">
+                <a href="/" class="btn btn-small btn-primary">进入 Travel Agent</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <!-- 分享提示 -->
+        <div class="shared-notice">
+            <h3>🔗 这是一个分享的旅行计划</h3>
+            <p>由 {{ plan.user.username }} 分享 • 查看他们的精彩行程安排</p>
+        </div>
+
+        <!-- Apple风格顶部计划信息卡片 - 使用与plan.html相同的样式 -->
+        <div class="plan-header-apple">
+            <div class="plan-header-main">
+                <h1 class="plan-title">{{ plan.title }}</h1>
+                <div class="plan-tags">
+                    <span class="tag tag-primary">{{ plan.travel_theme }}</span>
+                    <span class="tag tag-secondary">{{ plan.transport_mode }}</span>
+                    {% if plan.ai_generated %}
+                    <span class="tag tag-warning">AI生成</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="plan-header-info">
+                <div>
+                    <div class="info-label">出行日期</div>
+                    <div class="info-value">{{ plan.start_date }} 至 {{ plan.end_date }}</div>
+                </div>
+                <div>
+                    <div class="info-label">总天数</div>
+                    <div class="info-value">{{ plan.total_days }}天</div>
+                </div>
+                <div>
+                    <div class="info-label">预算范围</div>
+                    <div class="info-value">¥{{ plan.budget_min }} - ¥{{ plan.budget_max }}</div>
+                </div>
+                <div>
+                    <div class="info-label">计划状态</div>
+                    <div class="info-value">
+                        <span class="status-badge status-{{ plan.status }}">
+                            {% if plan.status == 'draft' %}草稿{% elif plan.status == 'confirmed' %}已确认{% elif plan.status == 'completed' %}已完成{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-layout">
+            <!-- 地图区域 -->
+            <div class="map-section">
+                <div class="card map-card">
+                    <div class="card-header">
+                        <h3 class="title-medium">📍 行程地图</h3>
+                        <div class="map-controls">
+                            <button id="showRouteBtn" class="btn btn-small btn-primary">显示路线</button>
+                            <button id="refreshRouteBtn" class="btn btn-small btn-outline">刷新路线</button>
+                            <button id="fitViewBtn" class="btn btn-small btn-secondary">适应视图</button>
+                        </div>
+                    </div>
+                    <div id="mapContainer" class="map-container"></div>
+                    <div id="routeInfo" class="route-info-container"></div>
+                </div>
+            </div>
+
+            <!-- 行程详情 -->
+            <div class="itinerary-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="title-medium">📅 详细行程</h3>
+                    </div>
+                    
+                    <div class="itinerary-content">
+                        <div id="itineraryTimeline" class="timeline">
+                            <!-- 动态加载行程内容 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-section">
+            <div class="card">
+                <h3 class="title-medium">📊 行程统计</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalCost">-</div>
+                        <div class="stat-label">总费用</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalDistance">-</div>
+                        <div class="stat-label">总距离</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalLocations">-</div>
+                        <div class="stat-label">地点数量</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="avgDailyCost">-</div>
+                        <div class="stat-label">日均费用</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 行动号召 -->
+        <div class="cta-section">
+            <h3>喜欢这个旅行计划？</h3>
+            <p>加入 Travel Agent，创建属于你自己的精彩旅行计划！</p>
+            <a href="/" class="cta-btn">立即开始规划 →</a>
+        </div>
+    </div>
+
+    <!-- 加载中遮罩 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>正在加载地图数据...</p>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // 传递计划ID和分享token给JS
+        window.PLAN_ID = parseInt("{{ plan.id }}");
+        window.SHARE_TOKEN = "{{ request.view_args.share_token }}";
+        window.IS_SHARED_VIEW = true;
+        
+        // 简化版地图功能
+        let map = null;
+        let planData = null;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initSharedPlan();
+        });
+
+        async function initSharedPlan() {
+            try {
+                // 显示加载状态
+                showLoading(true);
+                
+                // 获取分享计划数据
+                await loadSharedPlanData();
+                
+                // 初始化地图
+                initMap();
+                
+                // 渲染行程时间线
+                renderItinerary();
+                
+                // 计算统计信息
+                calculateStats();
+                
+            } catch (error) {
+                console.error('加载分享计划失败:', error);
+                showError('加载计划数据失败，请刷新页面重试');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadSharedPlanData() {
+            const response = await fetch(`/api/shared-plan/${window.PLAN_ID}/${window.SHARE_TOKEN}`);
+            if (!response.ok) {
+                throw new Error('获取分享计划数据失败');
+            }
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.msg || '获取计划数据失败');
+            }
+            planData = data;
+        }
+
+        function renderItinerary() {
+            const timeline = document.getElementById('itineraryTimeline');
+            if (!planData.itineraries || planData.itineraries.length === 0) {
+                timeline.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无行程安排</p>';
+                return;
+            }
+
+            timeline.innerHTML = planData.itineraries.map(day => {
+                let itemsHtml = '';
+                if (day.items && day.items.length > 0) {
+                    itemsHtml = day.items.map(item => `
+                        <div class="timeline-item">
+                            <div class="item-time">${item.start_time}</div>
+                            <div class="item-content">
+                                <h4>${item.title}</h4>
+                                <p class="item-location"><i class="fas fa-map-marker-alt"></i> ${item.location || '未设置地点'}</p>
+                                ${item.description ? `<p>${item.description}</p>` : ''}
+                                ${item.estimated_cost > 0 ? `<p class="item-cost"><i class="fas fa-yen-sign"></i> 预估费用: ¥${item.estimated_cost}</p>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    itemsHtml = '<div style="color: #999; font-style: italic; text-align: center; padding: 20px;">暂无具体安排</div>';
+                }
+
+                return `
+                    <div class="timeline-day">
+                        <div class="timeline-header">
+                            第${day.day_number}天 - ${day.date} ${day.theme ? `(${day.theme})` : ''}
+                        </div>
+                        <div class="timeline-items">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function calculateStats() {
+            if (!planData.itineraries) return;
+
+            let totalCost = 0;
+            let totalLocations = 0;
+            const locations = new Set();
+
+            planData.itineraries.forEach(day => {
+                if (day.items) {
+                    day.items.forEach(item => {
+                        if (item.estimated_cost) {
+                            totalCost += item.estimated_cost;
+                        }
+                        if (item.location) {
+                            locations.add(item.location);
+                        }
+                    });
+                }
+            });
+
+            totalLocations = locations.size;
+            const avgDailyCost = planData.total_days > 0 ? Math.round(totalCost / planData.total_days) : 0;
+
+            document.getElementById('totalCost').textContent = totalCost > 0 ? `¥${totalCost.toLocaleString()}` : '-';
+            document.getElementById('totalDistance').textContent = '-'; // 需要路线计算
+            document.getElementById('totalLocations').textContent = totalLocations;
+            document.getElementById('avgDailyCost').textContent = avgDailyCost > 0 ? `¥${avgDailyCost.toLocaleString()}` : '-';
+        }
+
+        function initMap() {
+            if (typeof AMap === 'undefined') {
+                document.getElementById('mapContainer').innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666; background-color: #f5f5f5; border-radius: 8px;">
+                        <h3>🗺️ 地图加载失败</h3>
+                        <p>无法加载高德地图API</p>
+                    </div>
+                `;
+                return;
+            }
+
+            map = new AMap.Map('mapContainer', {
+                zoom: 10,
+                center: [116.397428, 39.90923]
+            });
+
+            // 添加地图标记
+            addMapMarkers();
+        }
+
+        function addMapMarkers() {
+            if (!map || !planData.itineraries) return;
+
+            const markers = [];
+            planData.itineraries.forEach((day, dayIndex) => {
+                if (day.items) {
+                    day.items.forEach((item, itemIndex) => {
+                        if (item.latitude && item.longitude) {
+                            const marker = new AMap.Marker({
+                                position: [item.longitude, item.latitude],
+                                title: item.title
+                            });
+                            
+                            const infoWindow = new AMap.InfoWindow({
+                                content: `
+                                    <div style="padding: 10px;">
+                                        <h4 style="margin: 0 0 5px 0;">${item.title}</h4>
+                                        <p style="margin: 0; color: #666;">第${day.day_number}天 - ${item.start_time}</p>
+                                        <p style="margin: 5px 0 0 0;">${item.location}</p>
+                                    </div>
+                                `
+                            });
+                            
+                            marker.on('click', function() {
+                                infoWindow.open(map, marker.getPosition());
+                            });
+                            
+                            markers.push(marker);
+                        }
+                    });
+                }
+            });
+
+            if (markers.length > 0) {
+                map.add(markers);
+                map.setFitView(markers);
+            }
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        function showError(message) {
+            console.error(message);
+            // 简单的错误显示
+            alert(message);
+        }
+
+        // 地图控制按钮
+        document.getElementById('showRouteBtn')?.addEventListener('click', function() {
+            if (map) {
+                // 简化版路线显示
+                this.textContent = this.textContent.includes('显示') ? '隐藏路线' : '显示路线';
+            }
+        });
+
+        document.getElementById('fitViewBtn')?.addEventListener('click', function() {
+            if (map) {
+                map.setFitView();
+            }
+        });
+    </script>
+</body>
+</html> 

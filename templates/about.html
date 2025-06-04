@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关于我们 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+        /* Hero区域样式 */
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+            margin-bottom: 60px;
+        }
+        
+        .hero-title {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+        
+        .hero-subtitle {
+            font-size: 20px;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+        }
+        
+        .hero-badges {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* 功能特性网格 */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .feature-card {
+            background: var(--surface-color, #fff);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid var(--divider-color, #e0e0e0);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .feature-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary, #333);
+            margin-bottom: 12px;
+        }
+        
+        .feature-description {
+            color: var(--text-secondary, #666);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .feature-highlights {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .feature-highlights li {
+            color: var(--text-secondary, #666);
+            font-size: 14px;
+            padding: 4px 0;
+            position: relative;
+            padding-left: 20px;
+        }
+        
+        .feature-highlights li::before {
+            content: "✓";
+            color: var(--primary-color, #007AFF);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        
+        /* 技术栈展示 */
+        .tech-stack {
+            background: var(--background-color, #f8f9fa);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 60px;
+        }
+        
+        .tech-stack h3 {
+            text-align: center;
+            font-size: 28px;
+            color: var(--text-primary, #333);
+            margin-bottom: 30px;
+        }
+        
+        .tech-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+        
+        .tech-category {
+            text-align: center;
+        }
+        
+        .tech-category h4 {
+            color: var(--primary-color, #007AFF);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .tech-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .tech-item {
+            background: white;
+            border: 1px solid var(--divider-color, #e0e0e0);
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: var(--text-secondary, #666);
+            transition: all 0.2s ease;
+        }
+        
+        .tech-item:hover {
+            background: var(--primary-color, #007AFF);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        /* 统计数据 */
+        .stats-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 60px;
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* 团队信息 */
+        .team-section {
+            background: var(--surface-color, #fff);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid var(--divider-color, #e0e0e0);
+            text-align: center;
+        }
+        
+        .team-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0 auto 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+        }
+        
+        .contact-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .contact-link {
+            color: var(--primary-color, #007AFF);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .contact-link:hover {
+            background: var(--primary-color, #007AFF);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 32px;
+            }
+            
+            .hero-subtitle {
+                font-size: 16px;
+            }
+            
+            .hero-section {
+                padding: 50px 20px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .feature-card {
+                padding: 20px;
+            }
+            
+            .tech-stack,
+            .stats-section,
+            .team-section {
+                padding: 25px 20px;
+            }
+            
+            .contact-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        /* 特色标签动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .feature-card {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+        
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.2s; }
+        .feature-card:nth-child(3) { animation-delay: 0.3s; }
+        .feature-card:nth-child(4) { animation-delay: 0.4s; }
+        .feature-card:nth-child(5) { animation-delay: 0.5s; }
+        .feature-card:nth-child(6) { animation-delay: 0.6s; }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about" class="active">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <!-- Hero区域 -->
+    <div class="hero-section">
+        <h1 class="hero-title">Travel Agent</h1>
+        <p class="hero-subtitle">
+            基于AI的智能旅行规划平台，集成行程规划、游记管理、社交分享、开销追踪于一体的现代化旅行助手
+        </p>
+        <div class="hero-badges">
+            <span class="badge">🤖 AI驱动</span>
+            <span class="badge">📱 响应式设计</span>
+            <span class="badge">🗺️ 地图集成</span>
+            <span class="badge">📊 数据分析</span>
+            <span class="badge">👥 社交互动</span>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <!-- 核心功能特性 -->
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-robot feature-icon" style="color: #667eea;"></i>
+                <h3 class="feature-title">🤖 AI智能规划</h3>
+                <p class="feature-description">
+                    基于Deepseek AI的智能旅行计划生成器，只需提供目的地、时间和偏好，即可生成详细的个性化行程安排。
+                </p>
+                <ul class="feature-highlights">
+                    <li>智能景点推荐与路线优化</li>
+                    <li>实时预算估算与成本控制</li>
+                    <li>个性化主题定制（观光/美食/文化等）</li>
+                    <li>交通方式智能选择与建议</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <i class="fas fa-map feature-icon" style="color: #52c41a;"></i>
+                <h3 class="feature-title">🗺️ 地图与导航</h3>
+                <p class="feature-description">
+                    集成高德地图API，提供精确的地理定位、路线规划和可视化行程展示，让旅行路线一目了然。
+                </p>
+                <ul class="feature-highlights">
+                    <li>实时地图定位与标记</li>
+                    <li>最优路线自动规划</li>
+                    <li>景点间距离与耗时计算</li>
+                    <li>离线地图数据缓存</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <i class="fas fa-book feature-icon" style="color: #722ed1;"></i>
+                <h3 class="feature-title">📝 游记管理</h3>
+                <p class="feature-description">
+                    强大的游记编辑器支持富文本和Markdown格式，配合媒体管理系统，记录每一次精彩旅程。
+                </p>
+                <ul class="feature-highlights">
+                    <li>富文本与Markdown双模式编辑</li>
+                    <li>图片/视频上传与管理</li>
+                    <li>游记分享与权限控制</li>
+                    <li>关联行程计划自动生成</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <i class="fas fa-users feature-icon" style="color: #fa541c;"></i>
+                <h3 class="feature-title">👥 社交互动</h3>
+                <p class="feature-description">
+                    完整的社交体系，包括好友系统、动态分享、实时聊天，与志同道合的旅行者分享美好时光。
+                </p>
+                <ul class="feature-highlights">
+                    <li>好友添加与管理系统</li>
+                    <li>动态发布与互动（点赞/评论）</li>
+                    <li>实时聊天与消息通知</li>
+                    <li>旅行计划与游记分享</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <i class="fas fa-chart-line feature-icon" style="color: #13c2c2;"></i>
+                <h3 class="feature-title">💰 开销管理</h3>
+                <p class="feature-description">
+                    智能开销追踪系统，支持OCR扫描识别，自动分类统计，让旅行预算控制更加精准。
+                </p>
+                <ul class="feature-highlights">
+                    <li>OCR自动识别支付截图</li>
+                    <li>智能分类与标签管理</li>
+                    <li>预算设置与超支提醒</li>
+                    <li>多维度统计分析报表</li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <i class="fas fa-chart-pie feature-icon" style="color: #eb2f96;"></i>
+                <h3 class="feature-title">📊 旅行报告</h3>
+                <p class="feature-description">
+                    基于AI的个人旅行履历分析，生成专业的旅行数据报告，全面了解你的旅行偏好和成长轨迹。
+                </p>
+                <ul class="feature-highlights">
+                    <li>AI驱动的数据分析与洞察</li>
+                    <li>个人旅行偏好画像生成</li>
+                    <li>多格式报告导出（PDF/HTML/MD）</li>
+                    <li>成长轨迹与未来建议</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 技术栈展示 -->
+        <div class="tech-stack">
+            <h3>🛠️ 技术架构</h3>
+            <div class="tech-categories">
+                <div class="tech-category">
+                    <h4>前端技术</h4>
+                    <div class="tech-items">
+                        <span class="tech-item">HTML5</span>
+                        <span class="tech-item">CSS3</span>
+                        <span class="tech-item">JavaScript ES6+</span>
+                        <span class="tech-item">EasyMDE</span>
+                        <span class="tech-item">Marked.js</span>
+                        <span class="tech-item">FontAwesome</span>
+                    </div>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>后端架构</h4>
+                    <div class="tech-items">
+                        <span class="tech-item">Python Flask</span>
+                        <span class="tech-item">SQLAlchemy</span>
+                        <span class="tech-item">Flask-Migrate</span>
+                        <span class="tech-item">Flask-CORS</span>
+                        <span class="tech-item">Gunicorn</span>
+                    </div>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>AI与服务</h4>
+                    <div class="tech-items">
+                        <span class="tech-item">Deepseek AI</span>
+                        <span class="tech-item">OpenAI API</span>
+                        <span class="tech-item">高德地图API</span>
+                        <span class="tech-item">OCR识别</span>
+                        <span class="tech-item">百度/腾讯云</span>
+                    </div>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>数据与部署</h4>
+                    <div class="tech-items">
+                        <span class="tech-item">PostgreSQL</span>
+                        <span class="tech-item">SQLite</span>
+                        <span class="tech-item">Railway</span>
+                        <span class="tech-item">Git</span>
+                        <span class="tech-item">Docker</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计数据 -->
+        <div class="stats-section">
+            <h3>📈 平台特色</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">18+</div>
+                    <div class="stat-label">数据表设计</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">50+</div>
+                    <div class="stat-label">API接口</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">6</div>
+                    <div class="stat-label">核心模块</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">响应式设计</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 团队信息 -->
+        <div class="team-section">
+            <div class="team-avatar">
+                <i class="fas fa-user-astronaut"></i>
+            </div>
+            <h3>开发团队</h3>
+            <p style="color: #666; margin-bottom: 20px;">
+                <strong>方枘圆凿</strong> - 致力于用技术创造更好的旅行体验
+            </p>
+            <p style="color: #666; line-height: 1.6;">
+                我们是一支充满激情的开发团队，专注于将AI技术与旅行场景深度结合，
+                通过现代化的设计理念和技术架构，为用户提供专业、便捷、有趣的旅行规划体验。
+            </p>
+            
+            <div class="contact-links">
+                <a href="mailto:xr2079@icloud.com" class="contact-link">
+                    <i class="fas fa-envelope"></i>
+                    <span>xr2079@icloud.com</span>
+                </a>
+                <a href="https://github.com/RyGuxch/travel" target="_blank" class="contact-link">
+                    <i class="fab fa-github"></i>
+                    <span>GitHub仓库</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script>
+        // 页面加载动画
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化导航栏
+            if (typeof updateNavBar === 'function') {
+                updateNavBar();
+            }
+            
+            // 添加滚动动画效果
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, observerOptions);
+            
+            // 观察所有需要动画的元素
+            document.querySelectorAll('.tech-stack, .stats-section, .team-section').forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(30px)';
+                el.style.transition = 'all 0.6s ease';
+                observer.observe(el);
+            });
+        });
+        
+        // 技术标签悬停效果
+        document.querySelectorAll('.tech-item').forEach(item => {
+            item.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-3px) scale(1.05)';
+            });
+            
+            item.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(-2px) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html> 

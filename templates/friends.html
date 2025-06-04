@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>好友管理 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .friend-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .friend-info {
+            display: flex;
+            align-items: center;
+        }
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #4285f4;
+            color: white;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+        }
+        .search-result {
+            margin-top: 16px;
+        }
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 12px 16px;
+            cursor: pointer;
+        }
+        .tab.active {
+            border-bottom: 2px solid #4285f4;
+            color: #4285f4;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .friend-request {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .request-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 24px;
+            color: #666;
+        }
+        .friend-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .unread-badge {
+            background-color: #FF3B30;
+            color: white;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends" class="active">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <div class="card">
+            <h1 class="title-large">好友管理</h1>
+            <p class="subtitle">管理您的好友，查看和处理好友请求</p>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="friends">我的好友</div>
+                <div class="tab" data-tab="requests">好友请求 <span id="requestCount" class="badge"></span></div>
+                <div class="tab" data-tab="search">查找用户</div>
+            </div>
+            
+            <!-- 好友列表 -->
+            <div class="tab-content active" id="friends-tab">
+                <div id="friendsList">
+                    <p class="subtitle">正在加载好友列表...</p>
+                </div>
+            </div>
+            
+            <!-- 好友请求 -->
+            <div class="tab-content" id="requests-tab">
+                <div id="requestsList">
+                    <p class="subtitle">正在加载好友请求...</p>
+                </div>
+            </div>
+            
+            <!-- 查找用户 -->
+            <div class="tab-content" id="search-tab">
+                <div class="form-group">
+                    <label class="form-label">搜索用户</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="searchKeyword" class="form-input" 
+                               placeholder="输入用户名搜索" required>
+                        <button type="button" class="btn btn-primary" id="searchBtn">搜索</button>
+                    </div>
+                </div>
+                
+                <div id="searchResults" class="search-result">
+                    <!-- 搜索结果将在这里显示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    // 显示用户信息框
+    function renderUserBox() {
+        fetch('/api/userinfo', {
+            credentials: 'include'
+        }).then(r=>r.json()).then(data=>{
+            const box = document.getElementById('navUserBox');
+            if(data.logged_in) {
+                box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+            } else {
+                box.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
+            }
+        });
+    }
+    
+    // 登出用户
+    function logoutUser() {
+        fetch('/api/logout', {
+            method:'POST',
+            credentials: 'include'
+        }).then(()=>location.reload());
+    }
+    
+    // 显示登录模态框
+    function showLoginModal(message) {
+        let modal = document.getElementById('loginModal');
+        if(!modal) {
+            modal = document.createElement('div');
+            modal.id = 'loginModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.18);z-index:9999;display:flex;align-items:center;justify-content:center;';
+            
+            var htmlContent = '<div id="loginBox" style="background:#fff;border-radius:16px;max-width:340px;width:92vw;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);">';
+            htmlContent += '<h3 style="margin-bottom:18px;">用户登录</h3>';
+            
+            if(message) {
+                htmlContent += '<div style="color:#d00;margin-bottom:16px;padding:8px;background:#fff8f8;border-radius:6px;font-size:14px;">' + message + '</div>';
+            }
+            
+            htmlContent += '<input id="loginUsername" class="form-input" style="margin-bottom:12px;" placeholder="用户名">';
+            htmlContent += '<input id="loginPassword" class="form-input" type="password" style="margin-bottom:18px;" placeholder="密码">';
+            htmlContent += '<div style="text-align:right;">';
+            htmlContent += '<button class="btn btn-outline" onclick="closeLoginModal()">取消</button>';
+            htmlContent += '<button class="btn btn-primary" onclick="loginUser()">登录</button>';
+            htmlContent += '<button class="btn btn-link" style="margin-left:8px;" onclick="showRegisterBox()">注册</button>';
+            htmlContent += '</div>';
+            htmlContent += '<div id="loginMsg" style="color:#d00;font-size:13px;margin-top:10px;"></div>';
+            htmlContent += '</div>';
+            
+            modal.innerHTML = htmlContent;
+            document.body.appendChild(modal);
+        } else if (message) {
+            // 如果弹窗已存在但需要显示错误信息
+            const loginBox = document.getElementById('loginBox');
+            if (loginBox && !document.getElementById('loginErrorMsg')) {
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'loginErrorMsg';
+                errorDiv.style = 'color:#d00;margin-bottom:16px;padding:8px;background:#fff8f8;border-radius:6px;font-size:14px;';
+                errorDiv.textContent = message;
+                loginBox.insertBefore(errorDiv, loginBox.firstChild.nextSibling);
+            }
+        }
+        modal.style.display = 'flex';
+    }
+    
+    // 关闭登录模态框
+    function closeLoginModal() {
+        let modal = document.getElementById('loginModal');
+        if(modal) modal.remove();
+    }
+    
+    // 登录用户
+    function loginUser() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        fetch('/api/login', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials: 'include',
+            body:JSON.stringify({username,password})
+        }).then(r=>r.json()).then(d=>{
+            if(d.success) { 
+                closeLoginModal(); 
+                location.reload();
+            }
+            else document.getElementById('loginMsg').textContent = d.msg||'登录失败';
+        });
+    }
+    
+    // 显示注册框
+    function showRegisterBox() {
+        const box = document.getElementById('loginBox');
+        if(box) {
+            box.innerHTML = `
+                <h3 style='margin-bottom:18px;'>用户注册</h3>
+                <input id='regUsername' class='form-input' style='margin-bottom:12px;' placeholder='用户名'>
+                <input id='regPassword' class='form-input' type='password' style='margin-bottom:12px;' placeholder='密码'>
+                <input id='regPassword2' class='form-input' type='password' style='margin-bottom:18px;' placeholder='重复密码'>
+                <div style='text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeLoginModal()'>取消</button>
+                    <button class='btn btn-primary' onclick='registerUser()'>注册</button>
+                    <button class='btn btn-link' style='margin-left:8px;' onclick='showLoginBox()'>返回登录</button>
+                </div>
+                <div id='loginMsg' style='color:#d00;font-size:13px;margin-top:10px;'></div>
+            `;
+        }
+    }
+    
+    // 显示登录框
+    function showLoginBox() {
+        const box = document.getElementById('loginBox');
+        if(box) {
+            box.innerHTML = `
+                <h3 style='margin-bottom:18px;'>用户登录</h3>
+                <input id='loginUsername' class='form-input' style='margin-bottom:12px;' placeholder='用户名'>
+                <input id='loginPassword' class='form-input' type='password' style='margin-bottom:18px;' placeholder='密码'>
+                <div style='text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeLoginModal()'>取消</button>
+                    <button class='btn btn-primary' onclick='loginUser()'>登录</button>
+                    <button class='btn btn-link' style='margin-left:8px;' onclick='showRegisterBox()'>注册</button>
+                </div>
+                <div id='loginMsg' style='color:#d00;font-size:13px;margin-top:10px;'></div>
+            `;
+        }
+    }
+    
+    // 注册新用户
+    function registerUser() {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const password2 = document.getElementById('regPassword2').value;
+        if(!username || !password) { document.getElementById('loginMsg').textContent = '用户名和密码不能为空'; return; }
+        if(password !== password2) { document.getElementById('loginMsg').textContent = '两次密码不一致'; return; }
+        fetch('/api/register', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials: 'include',
+            body:JSON.stringify({username,password})
+        }).then(r=>r.json()).then(d=>{
+            if(d.success) {
+                // 注册成功自动登录
+                fetch('/api/login', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    credentials: 'include',
+                    body:JSON.stringify({username,password})
+                }).then(r=>r.json()).then(d2=>{
+                    if(d2.success) { 
+                        closeLoginModal();
+                        location.reload();
+                    }
+                    else document.getElementById('loginMsg').textContent = '注册成功但自动登录失败';
+                });
+            } else {
+                document.getElementById('loginMsg').textContent = d.msg||'注册失败';
+            }
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化页面
+        renderUserBox();
+        loadFriends();
+        loadFriendRequests();
+        
+        // 标签切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                this.classList.add('active');
+                document.getElementById(`${this.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // 搜索按钮事件
+        document.getElementById('searchBtn').addEventListener('click', searchUsers);
+        
+        // 回车搜索
+        document.getElementById('searchKeyword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchUsers();
+            }
+        });
+        
+        // 定期检查未读消息
+        checkUnreadMessages();
+        setInterval(checkUnreadMessages, 10000);
+    });
+    
+    // 加载好友列表
+    function loadFriends() {
+        fetch('/api/friends', {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            const friendsList = document.getElementById('friendsList');
+            
+            if (data.success && data.friends.length > 0) {
+                let html = '';
+                data.friends.forEach(friend => {
+                    html += `
+                    <div class="friend-card">
+                        <div class="friend-info">
+                            <div class="friend-avatar">${friend.username[0].toUpperCase()}</div>
+                            <div>
+                                <div>${friend.username}</div>
+                                <div id="unread-${friend.id}" class="unread-badge" style="display:none;"></div>
+                            </div>
+                        </div>
+                        <div class="friend-actions">
+                            <a href="/chat/${friend.id}" class="btn btn-small btn-primary">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:4px;">
+                                    <path d="M4 4H20V16H5.17L4 17.17V4ZM4 2C2.9 2 2.01 2.9 2.01 4L2 22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2H4Z" fill="currentColor"/>
+                                </svg>
+                                聊天
+                            </a>
+                            <button class="btn btn-small btn-outline" onclick="deleteFriend(${friend.id})">删除好友</button>
+                        </div>
+                    </div>
+                    `;
+                });
+                friendsList.innerHTML = html;
+            } else {
+                friendsList.innerHTML = '<div class="empty-state">您还没有添加好友</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('friendsList').innerHTML = '<div class="empty-state">加载失败，请重试</div>';
+        });
+    }
+    
+    // 加载好友请求
+    function loadFriendRequests() {
+        fetch('/api/friend-requests', {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            const requestsList = document.getElementById('requestsList');
+            
+            if (data.success && data.requests.length > 0) {
+                let html = '';
+                data.requests.forEach(request => {
+                    html += `
+                    <div class="friend-request">
+                        <div class="friend-info">
+                            <div class="friend-avatar">${request.sender_name[0].toUpperCase()}</div>
+                            <div>
+                                <div>${request.sender_name}</div>
+                                <div style="font-size: 12px; color: #666;">${request.created_at}</div>
+                            </div>
+                        </div>
+                        <div class="request-actions">
+                            <button class="btn btn-small btn-primary" onclick="respondFriendRequest(${request.id}, 'accept')">接受</button>
+                            <button class="btn btn-small btn-outline" onclick="respondFriendRequest(${request.id}, 'reject')">拒绝</button>
+                        </div>
+                    </div>
+                    `;
+                });
+                requestsList.innerHTML = html;
+                
+                // 更新请求数量标记
+                document.getElementById('requestCount').textContent = data.requests.length;
+                document.getElementById('requestCount').style.display = 'inline-block';
+            } else {
+                requestsList.innerHTML = '<div class="empty-state">没有待处理的好友请求</div>';
+                document.getElementById('requestCount').style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('requestsList').innerHTML = '<div class="empty-state">加载失败，请重试</div>';
+        });
+    }
+    
+    // 搜索用户
+    function searchUsers() {
+        const keyword = document.getElementById('searchKeyword').value.trim();
+        if (keyword.length < 2) {
+            alert('请输入至少2个字符');
+            return;
+        }
+        
+        document.getElementById('searchResults').innerHTML = '<p class="subtitle">搜索中...</p>';
+        
+        fetch(`/api/search-users?keyword=${encodeURIComponent(keyword)}`, {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (data.success && data.users.length > 0) {
+                let html = '';
+                data.users.forEach(user => {
+                    let actionBtn = '';
+                    
+                    if (user.is_friend) {
+                        actionBtn = `<button class="btn btn-small btn-outline" disabled>已是好友</button>`;
+                    } else if (user.request_sent) {
+                        actionBtn = `<button class="btn btn-small btn-outline" disabled>已发送请求</button>`;
+                    } else if (user.request_received) {
+                        actionBtn = `<button class="btn btn-small btn-primary" onclick="switchToRequestsTab()">查看请求</button>`;
+                    } else {
+                        actionBtn = `<button class="btn btn-small btn-primary" onclick="sendFriendRequest(${user.id})">添加好友</button>`;
+                    }
+                    
+                    html += `
+                    <div class="search-result-item">
+                        <div class="friend-info">
+                            <div class="friend-avatar">${user.username[0].toUpperCase()}</div>
+                            <div>${user.username}</div>
+                        </div>
+                        ${actionBtn}
+                    </div>
+                    `;
+                });
+                resultsContainer.innerHTML = html;
+            } else if (data.success && data.users.length === 0) {
+                resultsContainer.innerHTML = '<div class="empty-state">未找到匹配的用户</div>';
+            } else {
+                resultsContainer.innerHTML = `<div class="empty-state">${data.msg || '搜索失败'}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('searchResults').innerHTML = '<div class="empty-state">搜索失败，请重试</div>';
+        });
+    }
+    
+    // 发送好友请求
+    function sendFriendRequest(receiverId) {
+        fetch('/api/send-friend-request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                receiver_id: receiverId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.msg);
+                searchUsers(); // 刷新搜索结果
+            } else {
+                alert(data.msg);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('发送请求失败，请重试');
+        });
+    }
+    
+    // 回应好友请求
+    function respondFriendRequest(requestId, action) {
+        fetch('/api/respond-friend-request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                request_id: requestId,
+                action: action
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.msg);
+                loadFriendRequests(); // 刷新请求列表
+                if (action === 'accept') {
+                    loadFriends(); // 如果接受了请求，刷新好友列表
+                }
+            } else {
+                alert(data.msg);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('处理请求失败，请重试');
+        });
+    }
+    
+    // 删除好友
+    function deleteFriend(friendId) {
+        if (!confirm('确定要删除此好友吗？')) {
+            return;
+        }
+        
+        fetch('/api/delete-friend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                friend_id: friendId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.msg);
+                loadFriends(); // 刷新好友列表
+            } else {
+                alert(data.msg);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除好友失败，请重试');
+        });
+    }
+    
+    // 切换到请求标签
+    function switchToRequestsTab() {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        document.querySelector('.tab[data-tab="requests"]').classList.add('active');
+        document.getElementById('requests-tab').classList.add('active');
+    }
+    
+    // 启动聊天
+    function startChat(friendId) {
+        window.location.href = `/chat/${friendId}`;
+    }
+    
+    // 检查未读消息
+    function checkUnreadMessages() {
+        fetch('/api/unread-messages', {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新全局未读消息数量
+                updateUnreadCount(data.unread.total);
+                
+                // 更新每个好友的未读消息数
+                const bySender = data.unread.by_sender || {};
+                for (const senderId in bySender) {
+                    const unreadBadge = document.getElementById(`unread-${senderId}`);
+                    if (unreadBadge) {
+                        unreadBadge.textContent = bySender[senderId];
+                        unreadBadge.style.display = 'inline-block';
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error checking unread messages:', error);
+        });
+    }
+    
+    // 更新未读消息数量
+    function updateUnreadCount(count) {
+        // 如果有导航栏上的消息通知图标，可以在这里更新
+        if (count > 0) {
+            // 创建或更新导航栏消息通知
+            let msgNotif = document.getElementById('navMsgNotif');
+            if (!msgNotif) {
+                msgNotif = document.createElement('span');
+                msgNotif.id = 'navMsgNotif';
+                msgNotif.className = 'nav-notification';
+                document.querySelector('.nav-links a[href="/friends"]').appendChild(msgNotif);
+            }
+            msgNotif.textContent = count > 99 ? '99+' : count;
+        } else {
+            // 移除通知
+            const msgNotif = document.getElementById('navMsgNotif');
+            if (msgNotif) msgNotif.remove();
+        }
+    }
+    </script>
+</body>
+</html> 

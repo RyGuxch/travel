@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全部游记 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+    .notes-group { margin-bottom: 44px; }
+    .notes-group-title { font-size: 1.18em; font-weight: 700; margin-bottom: 10px; color: #222; display:flex; align-items:center; gap:8px; }
+    .notes-group-title:before { content:'📒'; font-size:1.2em; }
+    .notes-group-title-line { border:none; border-top:1.5px solid #f0f0f0; margin:8px 0 18px 0; }
+    .note-card { box-shadow: 0 4px 18px rgba(0,0,0,0.08); border-radius: 16px; border: 1px solid #f2f2f2; background: #fcfcfd; margin-bottom: 24px; padding: 22px 24px 18px 24px; transition: box-shadow 0.2s; }
+    .note-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.13); }
+    .note-title { font-size: 1.22em; font-weight: 700; color: #222; margin-bottom: 2px; letter-spacing: 0.5px; }
+    .note-time { color: #aaa; font-size: 13px; margin-top: 10px; text-align: right; letter-spacing: 0.2px; }
+    .note-content-md { color: #333; font-size: 1.07em; margin: 8px 0; max-height:200px; overflow:hidden; position:relative; transition:max-height 0.3s; background: #fff; border-radius: 10px; padding: 10px 16px 10px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .note-content-md.expanded { max-height:none; }
+    .note-content-md img { max-width:100%; height:auto; display:block; margin:8px 0; border-radius:8px; }
+    .fade-mask { content:''; position:absolute; left:0; right:0; bottom:0; height:48px; background:linear-gradient(to bottom,rgba(255,255,255,0) 0%,#fff 90%); pointer-events:none; border-radius:0 0 10px 10px; }
+    .show-toggle-btn { display:flex; justify-content:flex-end; margin-top:-32px; margin-bottom:8px; z-index:2; position:relative; }
+    .show-toggle-btn button { color:#007aff; background:none; border:none; font-weight:600; font-size:15px; cursor:pointer; padding:2px 12px; border-radius:6px; transition:background 0.15s; }
+    .show-toggle-btn button:hover { background:#f0f4ff; }
+    
+    /* 删除按钮特殊样式 */
+    .btn-danger {
+        background-color: #ff3b30;
+        color: white;
+        border-color: #ff3b30;
+    }
+    .btn-danger:hover {
+        background-color: #d70015;
+        border-color: #d70015;
+    }
+    
+    /* 删除确认模态框样式 */
+    .delete-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .delete-modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 400px;
+        width: 90vw;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .delete-modal-header {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #222;
+    }
+    .delete-modal-body {
+        color: #666;
+        margin-bottom: 24px;
+        line-height: 1.5;
+    }
+    .delete-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+    
+    @media (max-width: 600px) {
+        .note-card { padding: 12px 6vw 12px 6vw; }
+        .note-content-md { padding: 8px 4vw 8px 4vw; }
+        .note-actions {
+            flex-direction: column;
+            gap: 8px;
+        }
+        .note-actions button {
+            width: 100%;
+        }
+    }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes" class="active">全部游记</a>
+                <a href="/friends">好友</a>
+                <a href="/moments">动态</a>
+                <a href="/expenses">开销</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+    <div class="main-container">
+        <h2 style="margin:24px 0 18px 0;">全部游记</h2>
+        <div id="notesGroups"></div>
+    </div>
+    
+    <!-- 删除确认模态框 -->
+    <div class="delete-modal" id="deleteModal">
+        <div class="delete-modal-content">
+            <div class="delete-modal-header">确认删除</div>
+            <div class="delete-modal-body" id="deleteModalBody">
+                确定要删除这篇游记吗？删除后将无法恢复。
+            </div>
+            <div class="delete-modal-footer">
+                <button class="btn btn-outline" onclick="closeDeleteModal()">取消</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">删除</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+    let currentDeleteNoteId = null;
+    let currentDeleteNoteTitle = '';
+    
+    // 获取所有计划及游记
+    fetch('/api/plans').then(r=>r.json()).then(plansData=>{
+        const groups = [];
+        // 合并future和completed
+        (plansData.future||[]).concat(plansData.completed||[]).forEach(plan=>groups.push(plan));
+        if(!groups.length) { document.getElementById('notesGroups').innerHTML = '<p style="color:#888">暂无旅行计划及游记</p>'; return; }
+        // 依次获取每个计划下的游记
+        Promise.all(groups.map(plan=>
+            fetch(`/api/plan/${plan.id}/notes`).then(r=>r.json()).then(notes=>({plan, notes}))
+        )).then(all=>{
+            let html = '';
+            all.forEach(({plan, notes})=>{
+                if(!notes.length) return;
+                html += `<div class='notes-group'>
+                    <div class='notes-group-title'>${plan.title} <span style='color:#888;font-size:13px;'>（${plan.start_date} ~ ${plan.end_date}）</span></div>
+                    <hr class='notes-group-title-line'>`;
+                notes.sort((a,b)=>b.created_at.localeCompare(a.created_at));
+                notes.forEach((note, idx)=>{
+                    html += `<div class='note-card' data-note-id='${note.id}'>
+                        <div style='display:flex;justify-content:space-between;align-items:center;'>
+                            <div class='note-title'>${note.title}</div>
+                            <div class='note-actions' style="display:flex;align-items:center;gap:8px;">
+                                <button class='btn btn-small btn-outline' onclick='shareToMoments(${note.id}, "${note.title}")' title="分享到动态"><i class="fas fa-share-alt"></i> 分享</button>
+                                <button class='btn btn-small btn-outline' onclick='editNote(${note.id})' title="编辑游记"><i class="fas fa-pen-to-square"></i> 编辑</button>
+                                <button class='btn btn-small btn-danger' onclick='showDeleteModal(${note.id}, "${note.title}")' title="删除游记"><i class="fas fa-trash-alt"></i> 删除</button>
+                            </div>
+                        </div>
+                        <div class='note-time'>${note.created_at.replace('T',' ').slice(0,16)}</div>
+                        <div style='margin:10px 0; position:relative;'>
+                            <div class='note-content-md' id='noteContent${plan.id}_${idx}'>${marked.parse(note.content||'')}</div>
+                            <div class='fade-mask' id='fadeMask${plan.id}_${idx}'></div>
+                        </div>
+                        <div class='show-toggle-btn'><button id='toggleBtn${plan.id}_${idx}' onclick='toggleNoteContent("${plan.id}_${idx}")'>展开</button></div>
+                    </div>`;
+                });
+                html += `</div>`;
+            });
+            document.getElementById('notesGroups').innerHTML = html || '<p style="color:#888">暂无游记</p>';
+        });
+    });
+    
+    // 添加JS折叠/展开逻辑
+    window.toggleNoteContent = function(idx) {
+        const content = document.getElementById('noteContent'+idx);
+        const mask = document.getElementById('fadeMask'+idx);
+        const btn = document.getElementById('toggleBtn'+idx);
+        if(content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            mask.style.display = '';
+            btn.textContent = '展开';
+        } else {
+            content.classList.add('expanded');
+            mask.style.display = 'none';
+            btn.textContent = '收起';
+        }
+    }
+    
+    // 渲染后自动判断内容高度，决定是否显示遮罩和按钮
+    setTimeout(()=>{
+        document.querySelectorAll('.note-content-md').forEach((el, i)=>{
+            const idx = el.id.replace('noteContent','');
+            const mask = document.getElementById('fadeMask'+idx);
+            const btn = document.getElementById('toggleBtn'+idx);
+            if(el.scrollHeight <= 210) {
+                if(mask) mask.style.display = 'none';
+                if(btn) btn.style.display = 'none';
+            } else {
+                if(mask) mask.style.display = '';
+                if(btn) btn.style.display = '';
+            }
+        });
+    }, 200);
+    
+    // 删除游记相关函数
+    window.showDeleteModal = function(noteId, noteTitle) {
+        currentDeleteNoteId = noteId;
+        currentDeleteNoteTitle = noteTitle;
+        document.getElementById('deleteModalBody').innerHTML = `确定要删除游记"${noteTitle}"吗？删除后将无法恢复。`;
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    
+    window.closeDeleteModal = function() {
+        document.getElementById('deleteModal').style.display = 'none';
+        currentDeleteNoteId = null;
+        currentDeleteNoteTitle = '';
+    }
+    
+    // 确认删除游记
+    document.getElementById('confirmDeleteBtn').onclick = async function() {
+        if (!currentDeleteNoteId) return;
+        
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid #fff;border-top:2px solid transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>';
+        
+        try {
+            const response = await fetch(`/api/note/${currentDeleteNoteId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                closeDeleteModal();
+                
+                // 从DOM中移除游记卡片
+                const noteCard = document.querySelector(`[data-note-id="${currentDeleteNoteId}"]`);
+                if (noteCard) {
+                    noteCard.style.opacity = '0';
+                    noteCard.style.transform = 'translateY(-10px)';
+                    noteCard.style.transition = 'all 0.3s ease-out';
+                    
+                    setTimeout(() => {
+                        noteCard.remove();
+                        
+                        // 检查是否还有游记，如果没有则显示空状态
+                        checkEmptyState();
+                    }, 300);
+                }
+                
+                // 显示成功提示
+                showToast('游记删除成功', 'success');
+            } else {
+                throw new Error(result.msg || '删除失败');
+            }
+        } catch (error) {
+            console.error('删除失败:', error);
+            showToast('删除失败: ' + error.message, 'error');
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-trash-alt"></i> 删除';
+        }
+    };
+    
+    // 检查是否还有游记，如果没有则显示空状态
+    function checkEmptyState() {
+        const noteCards = document.querySelectorAll('.note-card');
+        if (noteCards.length === 0) {
+            document.getElementById('notesGroups').innerHTML = '<p style="color:#888">暂无游记</p>';
+        }
+    }
+    
+    // 显示提示消息
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.style = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.3s;
+        `;
+        
+        if (type === 'success') {
+            toast.style.background = '#34C759';
+            toast.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                ${message}
+            `;
+        } else if (type === 'error') {
+            toast.style.background = '#FF3B30';
+            toast.innerHTML = `
+                <i class="fas fa-exclamation-circle"></i>
+                ${message}
+            `;
+        }
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // 点击模态框外部关闭
+    document.getElementById('deleteModal').onclick = function(e) {
+        if (e.target === this) {
+            closeDeleteModal();
+        }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script>
+    // 添加editNote弹窗逻辑（与plan.html一致，简化media）
+    window.editNote = function(noteId) {
+        fetch(`/api/note/${noteId}`).then(r=>r.json()).then(note=>{
+            showNoteModal(note);
+        });
+    }
+    function showNoteModal(note) {
+        let modal = document.getElementById('noteModal');
+        if(!modal) {
+            modal = document.createElement('div');
+            modal.id = 'noteModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.18);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;';
+            modal.innerHTML = `
+            <div style='background:#fff;border-radius:16px;max-width:520px;width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);max-height:96vh;overflow:auto;box-sizing:border-box;'>
+                <h3 style='margin-bottom:12px;'>编辑游记</h3>
+                <input id='noteTitle' class='form-input' style='margin-bottom:12px;' placeholder='游记标题' value='${note?note.title:''}'>
+                <textarea id='noteEditor' style='min-height:120px;max-height:40vh;background:#fafbfc;margin-bottom:12px;'>${note?note.content||'':''}</textarea>
+                <div style='margin:12px 0 0 0;text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeNoteModal()'>取消</button>
+                    <button class='btn btn-primary' id='saveNoteBtn'>保存</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        setTimeout(()=>{
+            window.notesMDE = new EasyMDE({
+                element: document.getElementById('noteEditor'),
+                autoDownloadFontAwesome: false,
+                spellChecker: false,
+                status: false,
+                minHeight: '180px',
+                toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "link", "image", "table", "preview", "side-by-side", "fullscreen", "guide"]
+            });
+        }, 10);
+        document.getElementById('saveNoteBtn').onclick = function() {
+            const title = document.getElementById('noteTitle').value.trim();
+            const content = window.notesMDE.value();
+            if(!title) { alert('请输入标题'); return; }
+            fetch(`/api/note/${note.id}`, {
+                method:'PUT',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({title,content,media:[]})
+            }).then(r=>r.json()).then(d=>{
+                if(d.success) { closeNoteModal(); location.reload(); }
+                else alert('保存失败');
+            });
+        };
+    }
+    function closeNoteModal() {
+        let modal = document.getElementById('noteModal');
+        if(modal) { modal.style.display='none'; modal.remove(); }
+    }
+    
+    // 分享游记到动态功能
+    window.shareToMoments = function(noteId, noteTitle) {
+        fetch(`/api/note/${noteId}`).then(r=>r.json()).then(note=>{
+            showShareModal(note);
+        });
+    }
+    
+    function showShareModal(note) {
+        let modal = document.getElementById('shareModal');
+        if(!modal) {
+            modal = document.createElement('div');
+            modal.id = 'shareModal';
+            modal.style = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:auto;';
+            modal.innerHTML = `
+            <div style='background:#fff;border-radius:16px;max-width:520px;width:96vw;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.12);max-height:96vh;overflow:auto;box-sizing:border-box;'>
+                <h3 style='margin-bottom:12px;'>分享到动态</h3>
+                <div style="margin-bottom:16px;">
+                    <div style="font-weight:bold;margin-bottom:4px;">游记标题：</div>
+                    <div style="background:#f5f5f5;padding:8px;border-radius:8px;">${note.title}</div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <textarea id="shareContent" class="form-input" placeholder="添加分享文字..." style="width:100%;min-height:100px;margin-bottom:8px;">#旅行游记# 分享我的游记：《${note.title}》</textarea>
+                    <div style="color:#888;font-size:13px;">游记内容将作为摘要随动态一起发布</div>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;margin-bottom:8px;">可见性：</label>
+                    <select id="shareVisibility" class="form-input" style="width:100%;">
+                        <option value="public">所有人可见</option>
+                        <option value="friends">仅好友可见</option>
+                        <option value="private">仅自己可见</option>
+                    </select>
+                </div>
+                <div style='margin:20px 0 0 0;text-align:right;'>
+                    <button class='btn btn-outline' onclick='closeShareModal()' style="margin-right:8px;">取消</button>
+                    <button class='btn btn-primary' id='confirmShareBtn'>发布到动态</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        
+        // 截取游记内容前200个字符作为摘要
+        const contentPreview = note.content.length > 200 ? 
+            note.content.substring(0, 200) + '...' : 
+            note.content;
+            
+        document.getElementById('confirmShareBtn').onclick = function() {
+            const content = document.getElementById('shareContent').value.trim();
+            const visibility = document.getElementById('shareVisibility').value;
+            
+            if(!content) {
+                alert('请输入分享内容');
+                return;
+            }
+            
+            // 发布到动态的内容格式
+            const momentContent = `${content}\n\n---\n**游记摘要**：${contentPreview}`;
+            
+            // 调用API创建新动态
+            fetch('/api/moments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    content: momentContent,
+                    media: [], // 可以考虑将游记中的图片也一起分享
+                    visibility: visibility,
+                    note_id: note.id, // 添加关联的游记ID
+                    note_title: note.title
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if(result.success) {
+                    closeShareModal();
+                    
+                    // 显示成功提示
+                    const successMsg = document.createElement('div');
+                    successMsg.style = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#34C759;color:white;border-radius:8px;padding:12px 24px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;display:flex;align-items:center;gap:8px;';
+                    successMsg.innerHTML = `
+                        <i class="fas fa-check-circle"></i> 游记已成功分享到动态
+                    `;
+                    document.body.appendChild(successMsg);
+                    
+                    setTimeout(() => {
+                        successMsg.style.opacity = '0';
+                        successMsg.style.transition = 'opacity 0.5s, transform 0.5s';
+                        successMsg.style.transform = 'translateX(-50%) translateY(-10px)';
+                        setTimeout(() => {
+                            successMsg.remove();
+                        }, 500);
+                    }, 2000);
+                } else {
+                    alert('分享失败: ' + (result.msg || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('分享失败:', error);
+                alert('分享失败，请稍后重试');
+            });
+        };
+    }
+    
+    function closeShareModal() {
+        let modal = document.getElementById('shareModal');
+        if(modal) { 
+            modal.style.display = 'none'; 
+            modal.remove(); 
+        }
+    }
+    </script>
+</body>
+</html> 

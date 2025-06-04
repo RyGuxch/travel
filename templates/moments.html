@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅行动态 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* 整体容器样式 */
+        .moments-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* 动态卡片样式，参考微信、Instagram风格 */
+        .moment-card {
+            margin-bottom: 16px;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            background-color: var(--surface-color);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .moment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .moment-header {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(229,229,234,0.4);
+        }
+        
+        .avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            margin-right: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 1px 4px rgba(0,122,255,0.2);
+        }
+        
+        .username {
+            font-weight: 600;
+            margin-bottom: 2px;
+            font-size: 15px;
+        }
+        
+        .moment-time {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        
+        .moment-content {
+            padding: 16px;
+            white-space: pre-line;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        
+        /* 媒体内容样式，参考Instagram格栅 */
+        .moment-media {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 3px;
+            padding: 0 0 3px;
+        }
+        
+        .moment-media.single-image {
+            grid-template-columns: 1fr;
+        }
+        
+        .moment-media.two-images {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .moment-image {
+            width: 100%;
+            aspect-ratio: 1/1;
+            object-fit: cover;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .moment-image:hover {
+            opacity: 0.95;
+        }
+        
+        .moment-location {
+            padding: 0 16px 12px;
+            color: var(--primary-color);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .moment-location i {
+            margin-right: 6px;
+        }
+        
+        /* 交互按钮样式，参考微信和Instagram */
+        .moment-actions {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(229,229,234,0.4);
+            display: flex;
+            align-items: center;
+        }
+        
+        .moment-action {
+            display: flex;
+            align-items: center;
+            margin-right: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        
+        .moment-action i {
+            margin-right: 6px;
+            font-size: 20px;
+        }
+        
+        .moment-action:hover {
+            color: var(--text-primary);
+        }
+        
+        .moment-action.liked {
+            color: #FF2D55;
+        }
+        
+        /* 评论区域样式 */
+        .comment-area {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(229,229,234,0.4);
+            background-color: rgba(242,242,247,0.6);
+        }
+        
+        .comment-item {
+            padding: 8px 0;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        
+        .comment-user {
+            font-weight: 600;
+            margin-right: 6px;
+            color: var(--primary-color);
+        }
+        
+        .comment-content {
+            word-break: break-all;
+            line-height: 1.4;
+        }
+        
+        .comment-time {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        
+        /* 可见性标签 */
+        .visibility-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            margin-left: 8px;
+            vertical-align: middle;
+            border-radius: 10px;
+            background-color: var(--divider-color);
+            color: var(--text-secondary);
+        }
+        
+        .visibility-badge.private {
+            background-color: rgba(52, 58, 64, 0.1);
+            color: #343a40;
+        }
+        
+        .visibility-badge.friends {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+        }
+        
+        /* 发布表单样式 */
+        .new-moment-form {
+            margin-bottom: 24px;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            background-color: var(--surface-color);
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(229,229,234,0.6);
+            border-radius: 12px;
+            font-size: 15px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+            outline: none;
+        }
+        
+        textarea.form-control {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        /* 媒体预览区域 */
+        #mediaPreview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        
+        /* 筛选控制 */
+        .filter-controls {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .filter-btn {
+            margin: 0 5px;
+            border-radius: 18px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        /* 加载更多按钮 */
+        .load-more {
+            text-align: center;
+            margin: 20px 0 40px;
+        }
+        
+        .load-more .btn {
+            border-radius: 20px;
+            padding: 10px 24px;
+            font-weight: 500;
+        }
+        
+        /* 游记分享卡片样式 */
+        .shared-note-card {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+            border: 1px solid #d0e2ff;
+            border-radius: 12px;
+            margin: 12px 0;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        
+        .shared-note-card:hover {
+            transform: translateY(-1px);
+        }
+        
+        .shared-note-header {
+            background: rgba(0, 122, 255, 0.1);
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(0, 122, 255, 0.2);
+            color: #007AFF;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .shared-note-content {
+            padding: 16px;
+            color: #333;
+            line-height: 1.5;
+            font-size: 14px;
+            max-height: 150px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .shared-note-content::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(to bottom, transparent, rgba(248, 249, 255, 0.9));
+        }
+        
+        .shared-note-footer {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(0, 122, 255, 0.1);
+        }
+        
+        .shared-note-link {
+            color: #007AFF;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+        
+        .shared-note-link:hover {
+            color: #0056d6;
+            text-decoration: underline;
+        }
+        
+        .shared-note-link::after {
+            content: '→';
+            font-weight: bold;
+        }
+        
+        /* 已删除游记的样式 */
+        .shared-note-card.deleted-note {
+            background: linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%);
+            border: 1px solid #ddd;
+            opacity: 0.8;
+        }
+        
+        .deleted-note .shared-note-header {
+            background: rgba(153, 153, 153, 0.1);
+            border-bottom: 1px solid rgba(153, 153, 153, 0.2);
+            color: #999;
+        }
+        
+        .deleted-note .shared-note-content {
+            color: #999;
+        }
+        
+        .deleted-note .shared-note-content::after {
+            background: linear-gradient(to bottom, transparent, rgba(248, 248, 248, 0.9));
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments" class="active">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <div class="moments-container">
+            <div class="card">
+                <h1 class="title-large">旅行动态</h1>
+                <p class="subtitle">分享您的旅行瞬间，记录精彩时刻</p>
+            </div>
+            
+            <!-- 发布新动态 -->
+            <div class="new-moment-form">
+                <form id="newMomentForm">
+                    <div class="form-group">
+                        <textarea class="form-control" id="momentContent" rows="3" placeholder="分享你的旅行瞬间..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div id="mediaPreview"></div>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div class="input-group" style="display:flex; align-items:center;">
+                                <label for="mediaUpload" class="btn btn-outline" style="margin-right:10px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    添加媒体
+                                </label>
+                                <input type="file" id="mediaUpload" multiple accept="image/*,video/*" style="display:none;">
+                                <small class="text-muted" style="margin-left:5px;">最多可上传9张图片或视频</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div style="display:flex; align-items:center;">
+                            <button type="button" class="btn btn-outline" id="locationBtn" style="display:flex; align-items:center; margin-right:10px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                                添加位置
+                            </button>
+                            <input type="text" class="form-control" id="momentLocation" placeholder="输入位置" style="display:none; flex:1;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px;">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <select class="form-select" id="momentVisibility" style="border-radius:12px; padding:8px 12px; border-color:rgba(229,229,234,0.6);">
+                                    <option value="public" selected>所有人可见</option>
+                                    <option value="friends">仅好友可见</option>
+                                    <option value="private">仅自己可见</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">发布</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 筛选控制 -->
+            <div class="filter-controls">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-primary filter-btn" data-filter="all">全部动态</button>
+                    <button type="button" class="btn btn-outline filter-btn" data-filter="friends">好友动态</button>
+                    <button type="button" class="btn btn-outline filter-btn" data-filter="mine">我的动态</button>
+                </div>
+            </div>
+            
+            <!-- 动态列表 -->
+            <div id="momentsList"></div>
+            
+            <!-- 加载更多 -->
+            <div class="load-more">
+                <button class="btn btn-outline" id="loadMoreBtn">加载更多</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 删除确认模态框 -->
+    <div class="modal" id="deleteModal" style="display: none; align-items: center; justify-content: center;">
+        <div class="modal-content" style="position: relative; margin: 0 auto; max-width: 450px;">
+            <div class="modal-header">
+                <h5>确认删除</h5>
+                <button type="button" class="btn-close" data-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                确定要删除这条动态吗？此操作不可恢复。
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">删除</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 图片查看器模态框 -->
+    <div class="modal" id="imageViewerModal" style="display: none; background-color: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="background: none; box-shadow: none; max-width: 90%; margin: 0 auto;">
+            <button type="button" class="btn-close" data-dismiss="modal" style="position: absolute; top: 20px; right: 20px; color: white; background: none; font-size: 24px;">×</button>
+            <div style="text-align: center;">
+                <img id="viewerImage" src="" style="max-width: 100%; max-height: 80vh; margin: 0 auto;">
+            </div>
+        </div>
+    </div>
+    
+    <!-- 动态详情模态框 -->
+    <div class="modal" id="momentDetailModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5>动态详情</h5>
+                <button type="button" class="btn-close" data-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="momentDetailContent">
+                <!-- 动态详情内容 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑动态模态框 -->
+    <div class="modal" id="editMomentModal" style="display: none;">
+        <div class="modal-content" style="position: relative; margin: 0 auto; max-width: 550px;">
+            <div class="modal-header">
+                <h5>编辑动态</h5>
+                <button type="button" class="btn-close" data-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMomentForm">
+                    <input type="hidden" id="editMomentId">
+                    <div class="form-group">
+                        <textarea class="form-control" id="editMomentContent" rows="4" placeholder="分享你的旅行瞬间..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div id="editMediaPreview"></div>
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center;">
+                            <div class="location-display" id="editLocationDisplay" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px; vertical-align: middle;">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                                <span id="editLocationText"></span>
+                                <button type="button" class="btn-icon remove-location" style="margin-left: 8px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="location-input" id="editLocationInput" style="display: flex; align-items: center; margin-top: 8px; width: 100%;">
+                                <button type="button" class="btn btn-outline btn-small" id="editLocationBtn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px; vertical-align: middle;">
+                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                                        <circle cx="12" cy="10" r="3"></circle>
+                                    </svg>
+                                    添加位置
+                                </button>
+                                <input type="text" class="form-control" id="editMomentLocation" placeholder="输入位置" style="display: none; margin-left: 8px; flex: 1;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMomentVisibility" style="display: block; margin-bottom: 8px;">谁可以看到这条动态？</label>
+                        <select class="form-select" id="editMomentVisibility">
+                            <option value="public">所有人可见</option>
+                            <option value="friends">仅好友可见</option>
+                            <option value="private">仅自己可见</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="saveEditMomentBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentFilter = 'all';
+        let uploadedMedia = [];
+        let currentMomentId = null;
+        
+        // DOM 元素
+        const momentsList = document.getElementById('momentsList');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        const newMomentForm = document.getElementById('newMomentForm');
+        const momentContent = document.getElementById('momentContent');
+        const momentLocation = document.getElementById('momentLocation');
+        const momentVisibility = document.getElementById('momentVisibility');
+        const mediaUpload = document.getElementById('mediaUpload');
+        const mediaPreview = document.getElementById('mediaPreview');
+        const locationBtn = document.getElementById('locationBtn');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const deleteModal = document.getElementById('deleteModal');
+        const confirmDeleteBtn = document.getElementById('confirmDelete');
+        const momentDetailModal = document.getElementById('momentDetailModal');
+        const momentDetailContent = document.getElementById('momentDetailContent');
+        const imageViewerModal = document.getElementById('imageViewerModal');
+        const viewerImage = document.getElementById('viewerImage');
+        const editMomentModal = document.getElementById('editMomentModal');
+        const editMomentForm = document.getElementById('editMomentForm');
+        const editMomentContent = document.getElementById('editMomentContent');
+        const editMediaPreview = document.getElementById('editMediaPreview');
+        const editLocationDisplay = document.getElementById('editLocationDisplay');
+        const editLocationText = document.getElementById('editLocationText');
+        const editLocationInput = document.getElementById('editLocationInput');
+        const editLocationBtn = document.getElementById('editLocationBtn');
+        const editMomentVisibility = document.getElementById('editMomentVisibility');
+        const saveEditMomentBtn = document.getElementById('saveEditMomentBtn');
+        
+        // 检查登录状态
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('/api/userinfo', { credentials: 'include' });
+                const data = await response.json();
+                if (data.logged_in) {
+                    return true;
+                } else {
+                    window.location.href = '/?login_required=1';
+                    return false;
+                }
+            } catch (error) {
+                console.error('获取用户信息失败:', error);
+                window.location.href = '/';
+                return false;
+            }
+        }
+        
+        // 加载动态列表
+        async function loadMoments(page = 1, append = false) {
+            try {
+                loadMoreBtn.textContent = '加载中...';
+                loadMoreBtn.disabled = true;
+                
+                const response = await fetch(`/api/moments?page=${page}&per_page=10&filter=${currentFilter}`, {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`请求失败: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const moments = data.moments;
+                    const pagination = data.pagination;
+                    
+                    totalPages = pagination.pages;
+                    currentPage = pagination.page;
+                    
+                    if (!append) {
+                        momentsList.innerHTML = '';
+                    }
+                    
+                    if (moments.length === 0 && page === 1) {
+                        momentsList.innerHTML = `
+                            <div class="card" style="text-align:center; padding:40px 20px;">
+                                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="1.5" style="margin:0 auto 20px;">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <p class="subtitle" style="margin:0;">暂无动态，快来分享您的旅行瞬间吧！</p>
+                            </div>
+                        `;
+                    } else {
+                        moments.forEach(moment => {
+                            momentsList.appendChild(createMomentCard(moment));
+                        });
+                    }
+                    
+                    // 更新加载更多按钮状态
+                    loadMoreBtn.disabled = !pagination.has_next;
+                    if (pagination.has_next) {
+                        loadMoreBtn.textContent = '加载更多';
+                        loadMoreBtn.style.display = 'block';
+                    } else {
+                        if (moments.length > 0) {
+                            loadMoreBtn.textContent = '没有更多内容';
+                            loadMoreBtn.style.display = 'block';
+                            loadMoreBtn.classList.add('btn-disabled');
+                            setTimeout(() => {
+                                loadMoreBtn.style.opacity = '0';
+                                loadMoreBtn.style.transition = 'opacity 0.5s';
+                                setTimeout(() => {
+                                    loadMoreBtn.style.display = 'none';
+                                }, 500);
+                            }, 1500);
+                        } else {
+                            loadMoreBtn.style.display = 'none';
+                        }
+                    }
+                } else {
+                    console.error('加载动态失败:', data.msg);
+                    momentsList.innerHTML = `
+                        <div class="card">
+                            <p class="subtitle" style="text-align: center; margin: 20px 0;">加载动态失败: ${data.msg || '服务器错误'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载动态失败:', error);
+                momentsList.innerHTML = `
+                    <div class="card">
+                        <p class="subtitle" style="text-align: center; margin: 20px 0;">加载动态失败: ${error.message || '网络错误'}</p>
+                    </div>
+                `;
+            } finally {
+                loadMoreBtn.disabled = false;
+            }
+        }
+        
+        // 创建动态卡片
+        function createMomentCard(moment) {
+            const card = document.createElement('div');
+            card.className = 'moment-card';
+            card.setAttribute('data-moment-id', moment.id);
+            
+            // 可见性徽章
+            let visibilityBadge = '';
+            if (moment.visibility === 'private') {
+                visibilityBadge = `<span class="visibility-badge private">私密</span>`;
+            } else if (moment.visibility === 'friends') {
+                visibilityBadge = `<span class="visibility-badge friends">好友可见</span>`;
+            }
+            
+            // 操作按钮
+            let actionButtons = '';
+            if (moment.is_self) {
+                actionButtons = `
+                    <div style="margin-left: auto;">
+                        <button class="btn-icon dropdown-toggle">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="1"></circle>
+                                <circle cx="12" cy="5" r="1"></circle>
+                                <circle cx="12" cy="19" r="1"></circle>
+                            </svg>
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item edit-moment" href="#" data-moment-id="${moment.id}">编辑</a>
+                            <a class="dropdown-item delete-moment" href="#" data-moment-id="${moment.id}">删除</a>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 媒体内容
+            let mediaContent = '';
+            if (moment.media && moment.media.length > 0) {
+                // 根据图片数量设置不同的布局样式
+                let mediaClass = 'moment-media';
+                if (moment.media.length === 1) {
+                    mediaClass += ' single-image';
+                } else if (moment.media.length === 2) {
+                    mediaClass += ' two-images';
+                }
+                
+                mediaContent = `<div class="${mediaClass}">`;
+                moment.media.forEach(media => {
+                    mediaContent += `
+                        <img src="${media}" class="moment-image" data-src="${media}" alt="动态图片">
+                    `;
+                });
+                mediaContent += `</div>`;
+            }
+            
+            // 处理游记分享类型的特殊内容
+            let noteContent = '';
+            if (moment.content && moment.content.includes('**游记摘要**')) {
+                // 提取游记ID和标题（如果有）
+                const noteId = moment.note_id;
+                const noteTitle = moment.note_title;
+                
+                // 分离内容和游记摘要
+                const parts = moment.content.split('---');
+                const mainContent = parts[0].trim();
+                const summaryPart = parts.length > 1 ? parts[1].trim() : '';
+                
+                // 只有当游记ID存在时才创建游记卡片，否则显示提示信息
+                if (noteId && noteId !== null) {
+                    // 创建游记卡片样式
+                    noteContent = `
+                        <div class="shared-note-card">
+                            <div class="shared-note-header">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                游记分享
+                            </div>
+                            <div class="shared-note-content">
+                                ${marked.parse(summaryPart)}
+                            </div>
+                            <div class="shared-note-footer">
+                                <a href="/note/${noteId}" class="shared-note-link">查看完整游记</a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // 游记已被删除，显示提示信息
+                    noteContent = `
+                        <div class="shared-note-card deleted-note">
+                            <div class="shared-note-header">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="margin-right:5px;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                游记分享 (已删除)
+                            </div>
+                            <div class="shared-note-content" style="color: #999; font-style: italic;">
+                                ${summaryPart ? marked.parse(summaryPart) : '关联的游记已被删除'}
+                            </div>
+                            <div class="shared-note-footer">
+                                <span style="color: #999; font-size: 0.9em;">📝 关联的游记已不存在</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // 修改内容只显示主要部分
+                moment.content = mainContent;
+            }
+            
+            // 位置信息
+            let locationContent = '';
+            if (moment.location) {
+                locationContent = `
+                    <div class="moment-location">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        ${moment.location}
+                    </div>
+                `;
+            }
+            
+            // 格式化时间
+            const createdAt = new Date(moment.created_at);
+            const formattedTime = createdAt.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // 点赞和评论图标
+            const likeIcon = moment.is_liked ? 
+                `<svg width="18" height="18" viewBox="0 0 24 24" fill="#FF2D55" stroke="#FF2D55" stroke-width="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>` : 
+                `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>`;
+            
+            const commentIcon = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                </svg>
+            `;
+            
+            card.innerHTML = `
+                <div class="moment-header">
+                    <div class="avatar">
+                        ${moment.username[0].toUpperCase()}
+                    </div>
+                    <div>
+                        <p class="username">${moment.username} ${visibilityBadge}</p>
+                        <p class="moment-time">${formattedTime}</p>
+                    </div>
+                    ${actionButtons}
+                </div>
+                <div class="moment-content">${moment.content}</div>
+                ${mediaContent}
+                ${noteContent}
+                ${locationContent}
+                <div class="moment-actions">
+                    <div class="moment-action ${moment.is_liked ? 'liked' : ''}" data-action="like" data-moment-id="${moment.id}">
+                        ${likeIcon}
+                        <span>${moment.like_count}</span>
+                    </div>
+                    <div class="moment-action" data-action="comment" data-moment-id="${moment.id}">
+                        ${commentIcon}
+                        <span>${moment.comment_count}</span>
+                    </div>
+                </div>
+            `;
+            
+            // 初始化下拉菜单行为
+            if (moment.is_self) {
+                const dropdown = card.querySelector('.dropdown-toggle');
+                const menu = card.querySelector('.dropdown-menu');
+                
+                if (dropdown && menu) {
+                    // 设置相对定位，确保下拉菜单位置正确
+                    dropdown.parentElement.style.position = 'relative';
+                    
+                    dropdown.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        
+                        // 关闭所有其他打开的菜单
+                        document.querySelectorAll('.dropdown-menu').forEach(m => {
+                            if (m !== menu) m.style.display = 'none';
+                        });
+                        
+                        // 切换当前菜单
+                        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                    });
+                    
+                    // 为编辑和删除按钮添加点击事件
+                    const editButton = menu.querySelector('.edit-moment');
+                    const deleteButton = menu.querySelector('.delete-moment');
+                    
+                    if (editButton) {
+                        editButton.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // 获取动态ID
+                            const momentId = this.dataset.momentId;
+                            // 加载动态详情并显示编辑表单
+                            fetchMomentAndShowEditModal(momentId);
+                            // 关闭下拉菜单
+                            menu.style.display = 'none';
+                        });
+                    }
+                    
+                    if (deleteButton) {
+                        deleteButton.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // 设置当前要删除的动态ID
+                            currentMomentId = this.dataset.momentId;
+                            // 显示确认对话框
+                            deleteModal.style.display = 'flex';
+                            // 关闭下拉菜单
+                            menu.style.display = 'none';
+                        });
+                    }
+                }
+            }
+            
+            // 图片点击事件
+            const images = card.querySelectorAll('.moment-image');
+            images.forEach(img => {
+                img.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const src = e.target.getAttribute('data-src');
+                    viewerImage.src = src;
+                    imageViewerModal.style.display = 'block';
+                });
+            });
+            
+            return card;
+        }
+
+        // 事件处理：位置按钮点击
+        locationBtn.addEventListener('click', () => {
+            if (momentLocation.style.display === 'none') {
+                momentLocation.style.display = 'block';
+                locationBtn.textContent = '取消位置';
+            } else {
+                momentLocation.style.display = 'none';
+                momentLocation.value = '';
+                locationBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    添加位置
+                `;
+            }
+        });
+
+        // 事件处理：加载更多
+        loadMoreBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                loadMoments(currentPage + 1, true);
+            }
+        });
+        
+        // 事件处理：筛选按钮
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filter = btn.dataset.filter;
+                
+                // 更新按钮状态
+                filterBtns.forEach(b => {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-outline');
+                });
+                btn.classList.remove('btn-outline');
+                btn.classList.add('btn-primary');
+                
+                // 更新筛选条件并重新加载
+                currentFilter = filter;
+                loadMoments(1, false);
+            });
+        });
+        
+        // 事件处理：关闭图片查看器
+        document.querySelectorAll('.btn-close, [data-dismiss="modal"]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const modal = this.closest('.modal');
+                modal.style.display = 'none';
+                
+                // 如果是编辑动态模态框，清理游记编辑提示
+                if (modal === editMomentModal) {
+                    const noteHint = document.getElementById('noteEditHint');
+                    if (noteHint) {
+                        noteHint.remove();
+                    }
+                    // 清理表单数据属性
+                    editMomentForm.dataset.isNoteSharing = 'false';
+                    editMomentForm.removeAttribute('data-note-id');
+                    editMomentForm.removeAttribute('data-note-title');
+                    editMomentForm.removeAttribute('data-note-summary');
+                }
+            });
+        });
+        
+        // 事件处理：媒体上传
+        mediaUpload.addEventListener('change', async function() {
+            if (this.files.length === 0) return;
+            
+            // 限制上传数量
+            if (this.files.length + uploadedMedia.length > 9) {
+                alert('最多只能上传9张图片');
+                return;
+            }
+            
+            for (let i = 0; i < this.files.length; i++) {
+                const file = this.files[i];
+                
+                // 显示上传中预览
+                const preview = document.createElement('div');
+                preview.className = 'preview-item';
+                preview.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:center; width:100%; height:100%; background-color:#f1f1f1;">
+                        <div class="spinner"></div>
+                    </div>
+                `;
+                mediaPreview.appendChild(preview);
+                
+                try {
+                    // 上传文件
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('上传失败: ' + response.status);
+                    }
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        // 更新预览为实际媒体
+                        const url = data.url;
+                        const fileType = data.file_type;
+                        uploadedMedia.push(url);
+                        
+                        // 根据文件类型创建不同的预览
+                        let mediaElement;
+                        if (fileType === 'video') {
+                            mediaElement = `<video src="${url}" controls style="width:100%; height:100%; object-fit:cover;" muted>您的浏览器不支持视频播放</video>`;
+                        } else {
+                            mediaElement = `<img src="${url}" alt="预览" style="width:100%; height:100%; object-fit:cover;">`;
+                        }
+                        
+                        preview.innerHTML = `
+                            ${mediaElement}
+                            <button type="button" class="remove-media" data-url="${url}">×</button>
+                        `;
+                    } else {
+                        throw new Error(data.msg || '上传失败');
+                    }
+                } catch (error) {
+                    console.error('上传失败:', error);
+                    preview.innerHTML = `
+                        <div style="display:flex; align-items:center; justify-content:center; width:100%; height:100%; color:#ff3b30; background-color:#f1f1f1;">
+                            <span>上传失败</span>
+                        </div>
+                    `;
+                    setTimeout(() => {
+                        preview.remove();
+                    }, 2000);
+                }
+            }
+            
+            // 清空选择
+            this.value = '';
+        });
+        
+        // 事件处理：移除媒体预览
+        mediaPreview.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-media')) {
+                const url = e.target.dataset.url;
+                const index = uploadedMedia.indexOf(url);
+                if (index !== -1) {
+                    uploadedMedia.splice(index, 1);
+                }
+                e.target.closest('div').remove();
+            }
+        });
+        
+        // 事件处理：提交新动态
+        newMomentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const content = momentContent.value.trim();
+            if (!content) {
+                alert('请输入动态内容');
+                return;
+            }
+            
+            const submitBtn = newMomentForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<div class="spinner"></div> 发布中...`;
+            
+            try {
+                const location = momentLocation.style.display !== 'none' ? momentLocation.value.trim() : '';
+                
+                const data = {
+                    content,
+                    media: uploadedMedia,
+                    location,
+                    visibility: momentVisibility.value
+                };
+                
+                const response = await fetch('/api/moments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('发布失败: ' + response.status);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 重置表单
+                    momentContent.value = '';
+                    momentLocation.value = '';
+                    momentLocation.style.display = 'none';
+                    locationBtn.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        添加位置
+                    `;
+                    uploadedMedia = [];
+                    mediaPreview.innerHTML = '';
+                    
+                    // 重新加载动态
+                    await loadMoments(1, false);
+                    
+                    // 显示成功提示
+                    const successMsg = document.createElement('div');
+                    successMsg.style.position = 'fixed';
+                    successMsg.style.top = '20px';
+                    successMsg.style.left = '50%';
+                    successMsg.style.transform = 'translateX(-50%)';
+                    successMsg.style.padding = '12px 24px';
+                    successMsg.style.backgroundColor = '#34C759';
+                    successMsg.style.color = 'white';
+                    successMsg.style.borderRadius = '8px';
+                    successMsg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                    successMsg.style.zIndex = '9999';
+                    successMsg.style.display = 'flex';
+                    successMsg.style.alignItems = 'center';
+                    successMsg.style.gap = '8px';
+                    successMsg.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        发布成功！
+                    `;
+                    document.body.appendChild(successMsg);
+                    
+                    setTimeout(() => {
+                        successMsg.style.opacity = '0';
+                        successMsg.style.transition = 'opacity 0.5s, transform 0.5s';
+                        successMsg.style.transform = 'translateX(-50%) translateY(-10px)';
+                        setTimeout(() => {
+                            successMsg.remove();
+                        }, 500);
+                    }, 2000);
+                } else {
+                    throw new Error(result.msg || '发布失败');
+                }
+            } catch (error) {
+                console.error('发布失败:', error);
+                alert('发布失败: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '发布';
+            }
+        });
+        
+        // 事件处理：动态列表点击事件代理
+        momentsList.addEventListener('click', async (e) => {
+            // 点赞/取消点赞
+            if (e.target.closest('[data-action="like"]')) {
+                const likeButton = e.target.closest('[data-action="like"]');
+                const momentId = likeButton.dataset.momentId;
+                const isLiked = likeButton.classList.contains('liked');
+                
+                try {
+                    const url = isLiked ? `/api/moments/${momentId}/unlike` : `/api/moments/${momentId}/like`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('操作失败: ' + response.status);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // 更新UI
+                        if (isLiked) {
+                            likeButton.classList.remove('liked');
+                            likeButton.querySelector('svg').outerHTML = `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                </svg>
+                            `;
+                        } else {
+                            likeButton.classList.add('liked');
+                            
+                            // 添加点赞动画
+                            const heartAnimation = document.createElement('div');
+                            heartAnimation.style.position = 'absolute';
+                            heartAnimation.style.left = '0';
+                            heartAnimation.style.top = '0';
+                            heartAnimation.style.width = '100%';
+                            heartAnimation.style.height = '100%';
+                            heartAnimation.style.pointerEvents = 'none';
+                            heartAnimation.style.zIndex = '9999';
+                            
+                            const rect = likeButton.getBoundingClientRect();
+                            const heart = document.createElement('div');
+                            heart.innerHTML = `
+                                <svg width="30" height="30" viewBox="0 0 24 24" fill="#FF2D55" stroke="#FF2D55" stroke-width="2">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                </svg>
+                            `;
+                            heart.style.position = 'absolute';
+                            heart.style.left = `${rect.left + rect.width/2 - 15}px`;
+                            heart.style.top = `${rect.top + rect.height/2 - 15}px`;
+                            heart.style.opacity = '0';
+                            heart.style.transform = 'scale(0.5)';
+                            heart.style.transition = 'all 0.3s ease-out';
+                            
+                            document.body.appendChild(heartAnimation);
+                            heartAnimation.appendChild(heart);
+                            
+                            setTimeout(() => {
+                                heart.style.opacity = '1';
+                                heart.style.transform = 'scale(1.5)';
+                            }, 10);
+                            
+                            setTimeout(() => {
+                                heart.style.opacity = '0';
+                                heart.style.transform = 'scale(0.5) translateY(-20px)';
+                            }, 600);
+                            
+                            setTimeout(() => {
+                                heartAnimation.remove();
+                            }, 1000);
+                            
+                            likeButton.querySelector('svg').outerHTML = `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF2D55" stroke="#FF2D55" stroke-width="2">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                </svg>
+                            `;
+                        }
+                        
+                        likeButton.querySelector('span').textContent = result.like_count;
+                    } else {
+                        throw new Error(result.msg || '操作失败');
+                    }
+                } catch (error) {
+                    console.error('点赞操作失败:', error);
+                    alert('操作失败: ' + error.message);
+                }
+            }
+            
+            // 评论按钮点击处理
+            if (e.target.closest('[data-action="comment"]')) {
+                const commentButton = e.target.closest('[data-action="comment"]');
+                const momentId = commentButton.dataset.momentId;
+                const momentCard = commentButton.closest('.moment-card');
+                
+                // 切换评论区域显示状态
+                let commentArea = momentCard.querySelector('.comment-area');
+                
+                if (commentArea) {
+                    // 如果评论区已存在，则切换显示状态
+                    commentArea.style.display = commentArea.style.display === 'none' ? 'block' : 'none';
+                } else {
+                    // 创建评论区域
+                    commentArea = document.createElement('div');
+                    commentArea.className = 'comment-area';
+                    
+                    try {
+                        // 显示加载中状态
+                        commentArea.innerHTML = `
+                            <div style="display:flex; justify-content:center; padding:10px;">
+                                <div class="spinner"></div>
+                            </div>
+                        `;
+                        momentCard.appendChild(commentArea);
+                        
+                        // 获取动态详情（包含评论）
+                        const response = await fetch(`/api/moments/${momentId}`, {
+                            credentials: 'include',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Cache-Control': 'no-cache'
+                            }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`请求失败: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            const moment = data.moment;
+                            let commentsHtml = '';
+                            
+                            if (moment.comments && moment.comments.length > 0) {
+                                moment.comments.forEach(comment => {
+                                    // 格式化时间
+                                    const commentDate = new Date(comment.created_at);
+                                    const formattedCommentTime = commentDate.toLocaleString('zh-CN', {
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    });
+                                    
+                                    commentsHtml += `
+                                        <div class="comment-item" data-comment-id="${comment.id}">
+                                            <span class="comment-user">${comment.username}</span>
+                                            <span class="comment-content">${comment.content}</span>
+                                            <span class="comment-time">${formattedCommentTime}</span>
+                                            ${comment.user_id === parseInt(sessionStorage.getItem('user_id')) ? 
+                                                `<a href="#" class="delete-comment" data-comment-id="${comment.id}" style="margin-left:8px;color:#ff2d55;font-size:12px;">删除</a>` : ''}
+                                        </div>
+                                    `;
+                                    
+                                    // 添加回复
+                                    if (comment.replies && comment.replies.length > 0) {
+                                        comment.replies.forEach(reply => {
+                                            const replyDate = new Date(reply.created_at);
+                                            const formattedReplyTime = replyDate.toLocaleString('zh-CN', {
+                                                month: '2-digit',
+                                                day: '2-digit',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            });
+                                            
+                                            commentsHtml += `
+                                                <div class="comment-item reply-item" data-comment-id="${reply.id}" style="padding-left:20px;">
+                                                    <span class="comment-user">${reply.username}</span>
+                                                    <span class="comment-content">${reply.content}</span>
+                                                    <span class="comment-time">${formattedReplyTime}</span>
+                                                    ${reply.user_id === parseInt(sessionStorage.getItem('user_id')) ? 
+                                                        `<a href="#" class="delete-comment" data-comment-id="${reply.id}" style="margin-left:8px;color:#ff2d55;font-size:12px;">删除</a>` : ''}
+                                                </div>
+                                            `;
+                                        });
+                                    }
+                                });
+                            } else {
+                                commentsHtml = `<div style="text-align:center;color:var(--text-secondary);padding:10px;">暂无评论</div>`;
+                            }
+                            
+                            // 添加评论输入框
+                            commentArea.innerHTML = `
+                                ${commentsHtml}
+                                <div class="comment-form" style="margin-top:12px;">
+                                    <div style="display:flex;">
+                                        <input type="text" class="form-control comment-input" placeholder="添加评论..." style="flex:1;margin-right:8px;">
+                                        <button class="btn btn-primary btn-small submit-comment" data-moment-id="${momentId}">发送</button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // 添加评论提交事件
+                            const submitButton = commentArea.querySelector('.submit-comment');
+                            const commentInput = commentArea.querySelector('.comment-input');
+                            
+                            submitButton.addEventListener('click', async () => {
+                                const content = commentInput.value.trim();
+                                if (!content) return;
+                                
+                                submitButton.disabled = true;
+                                submitButton.innerHTML = `<div class="spinner" style="width:14px;height:14px;margin:0;"></div>`;
+                                
+                                try {
+                                    const response = await fetch(`/api/moments/${momentId}/comments`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Accept': 'application/json'
+                                        },
+                                        credentials: 'include',
+                                        body: JSON.stringify({ content })
+                                    });
+                                    
+                                    if (!response.ok) {
+                                        throw new Error('评论失败: ' + response.status);
+                                    }
+                                    
+                                    const result = await response.json();
+                                    
+                                    if (result.success) {
+                                        // 更新评论区域
+                                        commentInput.value = '';
+                                        
+                                        // 添加新评论到列表
+                                        const commentDate = new Date(result.comment.created_at);
+                                        const formattedCommentTime = commentDate.toLocaleString('zh-CN', {
+                                            month: '2-digit',
+                                            day: '2-digit',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        });
+                                        
+                                        const newComment = document.createElement('div');
+                                        newComment.className = 'comment-item';
+                                        newComment.setAttribute('data-comment-id', result.comment.id);
+                                        newComment.innerHTML = `
+                                            <span class="comment-user">${result.comment.username}</span>
+                                            <span class="comment-content">${result.comment.content}</span>
+                                            <span class="comment-time">${formattedCommentTime}</span>
+                                            <a href="#" class="delete-comment" data-comment-id="${result.comment.id}" style="margin-left:8px;color:#ff2d55;font-size:12px;">删除</a>
+                                        `;
+                                        
+                                        // 插入到评论表单前面
+                                        commentArea.querySelector('.comment-form').before(newComment);
+                                        
+                                        // 移除"暂无评论"提示
+                                        const noCommentDiv = commentArea.querySelector('div[style*="暂无评论"]');
+                                        if (noCommentDiv) {
+                                            noCommentDiv.remove();
+                                        }
+                                        
+                                        // 更新评论数
+                                        commentButton.querySelector('span').textContent = result.comment_count;
+                                    } else {
+                                        throw new Error(result.msg || '评论失败');
+                                    }
+                                } catch (error) {
+                                    console.error('评论失败:', error);
+                                    alert('评论失败: ' + error.message);
+                                } finally {
+                                    submitButton.disabled = false;
+                                    submitButton.textContent = '发送';
+                                }
+                            });
+                            
+                            // 添加回车键提交功能
+                            commentInput.addEventListener('keypress', (e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    submitButton.click();
+                                }
+                            });
+                            
+                            // 添加删除评论事件代理
+                            commentArea.addEventListener('click', async (e) => {
+                                if (e.target.classList.contains('delete-comment')) {
+                                    e.preventDefault();
+                                    const commentId = e.target.dataset.commentId;
+                                    
+                                    if (confirm('确定要删除这条评论吗？')) {
+                                        try {
+                                            const response = await fetch(`/api/comments/${commentId}`, {
+                                                method: 'DELETE',
+                                                headers: {
+                                                    'Accept': 'application/json'
+                                                },
+                                                credentials: 'include'
+                                            });
+                                            
+                                            if (!response.ok) {
+                                                throw new Error('删除评论失败: ' + response.status);
+                                            }
+                                            
+                                            const result = await response.json();
+                                            
+                                            if (result.success) {
+                                                // 从DOM中移除评论
+                                                const commentItem = commentArea.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+                                                if (commentItem) {
+                                                    commentItem.remove();
+                                                }
+                                                
+                                                // 更新评论数
+                                                commentButton.querySelector('span').textContent = result.comment_count;
+                                                
+                                                // 如果没有评论了，显示"暂无评论"
+                                                if (result.comment_count === 0) {
+                                                    const commentsContainer = commentArea.querySelector('.comment-form');
+                                                    const noCommentDiv = document.createElement('div');
+                                                    noCommentDiv.style.textAlign = 'center';
+                                                    noCommentDiv.style.color = 'var(--text-secondary)';
+                                                    noCommentDiv.style.padding = '10px';
+                                                    noCommentDiv.textContent = '暂无评论';
+                                                    commentsContainer.before(noCommentDiv);
+                                                }
+                                            } else {
+                                                throw new Error(result.msg || '删除评论失败');
+                                            }
+                                        } catch (error) {
+                                            console.error('删除评论失败:', error);
+                                            alert('删除评论失败: ' + error.message);
+                                        }
+                                    }
+                                }
+                            });
+                        } else {
+                            throw new Error(data.msg || '获取评论失败');
+                        }
+                    } catch (error) {
+                        console.error('获取评论失败:', error);
+                        commentArea.innerHTML = `
+                            <div style="text-align:center;color:#ff3b30;padding:10px;">
+                                加载评论失败: ${error.message || '网络错误'}
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            // 删除动态
+            if (e.target.closest('.delete-moment')) {
+                const deleteButton = e.target.closest('.delete-moment');
+                const momentId = deleteButton.dataset.momentId;
+                
+                // 设置当前要删除的动态ID
+                currentMomentId = momentId;
+                
+                // 显示确认对话框
+                deleteModal.style.display = 'flex';
+            }
+        });
+        
+        // 确认删除动态
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!currentMomentId) return;
+            
+            try {
+                confirmDeleteBtn.disabled = true;
+                confirmDeleteBtn.innerHTML = `<div class="spinner"></div> 删除中...`;
+                
+                const response = await fetch(`/api/moments/${currentMomentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('删除失败: ' + response.status);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 从DOM中移除动态
+                    const momentCard = document.querySelector(`.moment-card[data-moment-id="${currentMomentId}"]`);
+                    if (momentCard) {
+                        momentCard.style.opacity = '0';
+                        momentCard.style.transform = 'translateY(-10px)';
+                        momentCard.style.transition = 'all 0.3s ease-out';
+                        
+                        setTimeout(() => {
+                            momentCard.remove();
+                        }, 300);
+                    }
+                    
+                    deleteModal.style.display = 'none';
+                    
+                    // 显示成功提示
+                    const successMsg = document.createElement('div');
+                    successMsg.style.position = 'fixed';
+                    successMsg.style.top = '20px';
+                    successMsg.style.left = '50%';
+                    successMsg.style.transform = 'translateX(-50%)';
+                    successMsg.style.padding = '12px 24px';
+                    successMsg.style.backgroundColor = '#34C759';
+                    successMsg.style.color = 'white';
+                    successMsg.style.borderRadius = '8px';
+                    successMsg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                    successMsg.style.zIndex = '9999';
+                    successMsg.style.display = 'flex';
+                    successMsg.style.alignItems = 'center';
+                    successMsg.style.gap = '8px';
+                    successMsg.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        删除成功
+                    `;
+                    document.body.appendChild(successMsg);
+                    
+                    setTimeout(() => {
+                        successMsg.style.opacity = '0';
+                        successMsg.style.transition = 'opacity 0.5s, transform 0.5s';
+                        successMsg.style.transform = 'translateX(-50%) translateY(-10px)';
+                        setTimeout(() => {
+                            successMsg.remove();
+                        }, 500);
+                    }, 2000);
+                } else {
+                    throw new Error(result.msg || '删除失败');
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败: ' + error.message);
+            } finally {
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.textContent = '删除';
+            }
+        });
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // 检查登录状态
+                const isLoggedIn = await checkLoginStatus();
+                if (isLoggedIn) {
+                    // 加载动态列表
+                    loadMoments();
+                    
+                    // 设置默认筛选按钮状态
+                    const defaultFilterBtn = document.querySelector('.filter-btn[data-filter="all"]');
+                    if (defaultFilterBtn) {
+                        defaultFilterBtn.classList.add('btn-primary');
+                        defaultFilterBtn.classList.remove('btn-outline');
+                    }
+                    
+                    // 渲染用户信息
+                    renderUserBox();
+                    
+                    // 存储当前用户ID到sessionStorage，用于评论功能
+                    const userResponse = await fetch('/api/userinfo', { credentials: 'include' });
+                    const userData = await userResponse.json();
+                    if (userData.logged_in) {
+                        sessionStorage.setItem('user_id', userData.user_id);
+                    }
+                    
+                    // 全局点击事件，用于关闭所有下拉菜单
+                    document.addEventListener('click', function(e) {
+                        // 如果点击的不是下拉菜单按钮，则关闭所有下拉菜单
+                        if (!e.target.closest('.dropdown-toggle')) {
+                            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                                menu.style.display = 'none';
+                            });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('初始化失败:', error);
+            }
+        });
+        
+        // 渲染用户信息框
+        function renderUserBox() {
+            try {
+                const navUserBox = document.getElementById('navUserBox');
+                if (!navUserBox) {
+                    console.error('找不到用户信息框元素');
+                    return;
+                }
+
+                fetch('/api/userinfo', {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('获取用户信息失败');
+                    return r.json();
+                })
+                .then(data => {
+                    if (data.logged_in) {
+                        navUserBox.innerHTML = `
+                            <div style="display:flex; align-items:center;">
+                                <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
+                                <span>${data.username}</span>
+                                <button class='btn btn-small btn-outline' style="margin-left:12px;" onclick='logoutUser()'>登出</button>
+                            </div>
+                        `;
+                    } else {
+                        navUserBox.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
+                    }
+                })
+                .catch(err => {
+                    console.error('获取用户信息失败:', err);
+                    navUserBox.innerHTML = `<button class='btn btn-small btn-primary' onclick='window.location.reload()'>重试</button>`;
+                });
+            } catch (error) {
+                console.error('渲染用户信息框失败:', error);
+            }
+        }
+        
+        // 登出用户 - 添加全局函数
+        window.logoutUser = function() {
+            fetch('/api/logout', {
+                method:'POST',
+                credentials: 'include'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    alert('登出失败: ' + (data.msg || '未知错误'));
+                }
+            })
+            .catch(err => {
+                console.error('登出失败:', err);
+                alert('登出失败，请重试');
+            });
+        };
+        
+        // 显示登录模态框 - 添加全局函数
+        window.showLoginModal = function() {
+            window.location.href = '/?login_required=1';
+        };
+
+        // 事件处理：编辑动态
+        async function fetchMomentAndShowEditModal(momentId) {
+            try {
+                // 获取动态详情
+                const response = await fetch(`/api/moments/${momentId}`, {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`请求失败: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const moment = data.moment;
+                    
+                    // 处理游记分享类型的内容
+                    let editableContent = moment.content;
+                    let isNoteSharing = false;
+                    let noteInfo = null;
+                    
+                    if (moment.content && moment.content.includes('**游记摘要**')) {
+                        isNoteSharing = true;
+                        // 分离内容和游记摘要
+                        const parts = moment.content.split('---');
+                        editableContent = parts[0].trim();
+                        
+                        // 保存游记信息用于重新构建完整内容
+                        noteInfo = {
+                            note_id: moment.note_id,
+                            note_title: moment.note_title,
+                            summary: parts.length > 1 ? parts[1].trim() : ''
+                        };
+                    }
+                    
+                    // 填充表单
+                    document.getElementById('editMomentId').value = moment.id;
+                    editMomentContent.value = editableContent;
+                    editMomentVisibility.value = moment.visibility;
+                    
+                    // 保存游记信息到表单数据属性，以便提交时重新构建
+                    if (isNoteSharing && noteInfo) {
+                        editMomentForm.dataset.isNoteSharing = 'true';
+                        editMomentForm.dataset.noteId = noteInfo.note_id || '';
+                        editMomentForm.dataset.noteTitle = noteInfo.note_title || '';
+                        editMomentForm.dataset.noteSummary = noteInfo.summary || '';
+                        
+                        // 在编辑区域显示提示
+                        const noteHint = document.createElement('div');
+                        noteHint.id = 'noteEditHint';
+                        noteHint.style = 'background:#e8f5ff;border:1px solid #b3d9ff;border-radius:8px;padding:12px;margin-bottom:12px;color:#0066cc;font-size:14px;';
+                        noteHint.innerHTML = `
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M12 6v6l4 2"></path>
+                                </svg>
+                                <span>这是一条游记分享动态，游记摘要将自动保留</span>
+                            </div>
+                        `;
+                        editMomentContent.parentNode.insertBefore(noteHint, editMomentContent);
+                    } else {
+                        editMomentForm.dataset.isNoteSharing = 'false';
+                        // 移除可能存在的提示
+                        const existingHint = document.getElementById('noteEditHint');
+                        if (existingHint) {
+                            existingHint.remove();
+                        }
+                    }
+                    
+                    // 处理位置信息
+                    if (moment.location) {
+                        editLocationDisplay.style.display = 'flex';
+                        editLocationText.textContent = moment.location;
+                        editMomentLocation.value = moment.location;
+                        editMomentLocation.style.display = 'block';
+                        editLocationBtn.textContent = '取消位置';
+                    } else {
+                        editLocationDisplay.style.display = 'none';
+                        editMomentLocation.style.display = 'none';
+                        editMomentLocation.value = '';
+                        editLocationBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px; vertical-align: middle;">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            添加位置
+                        `;
+                    }
+                    
+                    // 填充媒体预览
+                    editMediaPreview.innerHTML = '';
+                    if (moment.media && moment.media.length > 0) {
+                        moment.media.forEach(media => {
+                            const preview = document.createElement('div');
+                            preview.className = 'preview-item';
+                            preview.innerHTML = `
+                                <img src="${media}" alt="预览">
+                            `;
+                            editMediaPreview.appendChild(preview);
+                        });
+                    }
+                    
+                    // 显示模态框
+                    editMomentModal.style.display = 'flex';
+                } else {
+                    throw new Error(data.msg || '获取动态失败');
+                }
+            } catch (error) {
+                console.error('获取动态失败:', error);
+                alert('获取动态失败: ' + error.message);
+            }
+        }
+
+        // 事件处理：保存编辑后的动态
+        saveEditMomentBtn.addEventListener('click', async () => {
+            const momentId = document.getElementById('editMomentId').value;
+            let content = editMomentContent.value.trim();
+            const location = editMomentLocation.style.display !== 'none' ? editMomentLocation.value.trim() : '';
+            const visibility = editMomentVisibility.value;
+            
+            if (!content) {
+                alert('请输入动态内容');
+                return;
+            }
+            
+            // 如果是游记分享动态，重新构建完整内容
+            if (editMomentForm.dataset.isNoteSharing === 'true') {
+                const noteSummary = editMomentForm.dataset.noteSummary || '';
+                if (noteSummary) {
+                    content = `${content}\n\n---\n${noteSummary}`;
+                }
+            }
+            
+            try {
+                saveEditMomentBtn.disabled = true;
+                saveEditMomentBtn.innerHTML = `<div class="spinner"></div> 保存中...`;
+                
+                const response = await fetch(`/api/moments/${momentId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        content, 
+                        location, 
+                        visibility,
+                        media: [] // 暂时不支持编辑时更改媒体
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('更新失败: ' + response.status);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 关闭模态框
+                    editMomentModal.style.display = 'none';
+                    
+                    // 清理提示信息
+                    const noteHint = document.getElementById('noteEditHint');
+                    if (noteHint) {
+                        noteHint.remove();
+                    }
+                    
+                    // 显示成功提示
+                    const successMsg = document.createElement('div');
+                    successMsg.style.position = 'fixed';
+                    successMsg.style.top = '20px';
+                    successMsg.style.left = '50%';
+                    successMsg.style.transform = 'translateX(-50%)';
+                    successMsg.style.padding = '12px 24px';
+                    successMsg.style.backgroundColor = '#34C759';
+                    successMsg.style.color = 'white';
+                    successMsg.style.borderRadius = '8px';
+                    successMsg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                    successMsg.style.zIndex = '9999';
+                    successMsg.style.display = 'flex';
+                    successMsg.style.alignItems = 'center';
+                    successMsg.style.gap = '8px';
+                    successMsg.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        更新成功！
+                    `;
+                    document.body.appendChild(successMsg);
+                    
+                    setTimeout(() => {
+                        successMsg.style.opacity = '0';
+                        successMsg.style.transition = 'opacity 0.5s, transform 0.5s';
+                        successMsg.style.transform = 'translateX(-50%) translateY(-10px)';
+                        setTimeout(() => {
+                            successMsg.remove();
+                        }, 500);
+                    }, 2000);
+                    
+                    // 重新加载动态
+                    await loadMoments(1, false);
+                } else {
+                    throw new Error(result.msg || '更新失败');
+                }
+            } catch (error) {
+                console.error('更新失败:', error);
+                alert('更新失败: ' + error.message);
+            } finally {
+                saveEditMomentBtn.disabled = false;
+                saveEditMomentBtn.textContent = '保存';
+            }
+        });
+
+        // 事件处理：编辑动态时的位置按钮
+        editLocationBtn.addEventListener('click', () => {
+            if (editMomentLocation.style.display === 'none') {
+                editMomentLocation.style.display = 'block';
+                editLocationBtn.textContent = '取消位置';
+            } else {
+                editMomentLocation.style.display = 'none';
+                editMomentLocation.value = '';
+                editLocationBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px; vertical-align: middle;">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    添加位置
+                `;
+            }
+        });
+
+        // 事件处理：编辑动态时的移除位置按钮
+        document.querySelector('.remove-location').addEventListener('click', () => {
+            editLocationDisplay.style.display = 'none';
+            editMomentLocation.value = '';
+            editMomentLocation.style.display = 'none';
+            editLocationBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px; vertical-align: middle;">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                添加位置
+            `;
+        });
+    </script>
+</body>
+</html> 

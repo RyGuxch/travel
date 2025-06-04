@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的旅行计划 - Travel Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background: #f7f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'San Francisco', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+        }
+        .timeline {
+            position: relative;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 0 40px 0;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 32px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e6;
+        }
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            position: relative;
+        }
+        .timeline-dot {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border: 3px solid #007aff;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            position: absolute;
+            left: 24px;
+            top: 8px;
+            z-index: 2;
+        }
+        .timeline-card {
+            margin-left: 56px;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            padding: 28px 32px;
+            min-width: 320px;
+            max-width: 500px;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .timeline-card:hover {
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            transform: translateY(-2px) scale(1.01);
+        }
+        .timeline-date {
+            color: #888;
+            font-size: 1em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .timeline-title {
+            font-size: 1.25em;
+            font-weight: 700;
+            color: #222;
+            margin-bottom: 12px;
+        }
+        .timeline-info {
+            color: #444;
+            font-size: 1.05em;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 18px;
+            border-radius: 16px;
+            font-size: 1em;
+            font-weight: 600;
+            margin-top: 12px;
+            background: #eaf4ff;
+            color: #007aff;
+            border: none;
+            box-shadow: 0 1px 4px rgba(0,122,255,0.07);
+        }
+        .status-completed {
+            background: #e6f9ea;
+            color: #34c759;
+        }
+        .plan-actions {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: none;
+            gap: 8px;
+        }
+        .timeline-card:hover .plan-actions {
+            display: flex;
+        }
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .btn-icon:hover {
+            transform: scale(1.1);
+        }
+        .btn-icon.delete:hover {
+            background: #ff3b30;
+            color: white;
+        }
+        /* 删除确认模态框 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        }
+        .modal-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #222;
+        }
+        .modal-body {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        @media (max-width: 800px) {
+            .timeline-card { min-width: 0; max-width: 100%; padding: 20px 10px; position: relative; }
+            .timeline { max-width: 98vw; }
+            .plan-actions {
+                display: flex;
+                position: relative;
+                top: auto;
+                right: auto;
+                margin-top: 12px;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="logo">🌍 Travel Agent</a>
+            <div class="nav-links">
+                <a href="/">首页</a>
+                <a href="/plans" class="active">我的计划</a>
+                <a href="/notes">游记</a>
+                <a href="/expenses">开销</a>
+                <a href="/moments">动态</a>
+                <a href="/friends">好友</a>
+                <a href="/reports">报告</a>
+                <a href="/about">关于</a>
+            </div>
+            <div class="nav-user" id="navUserBox"></div>
+        </div>
+    </nav>
+    <div class="main-container">
+        <div class="card" style="background:transparent;box-shadow:none;text-align:center;margin-bottom:0;">
+            <h1 class="title-large" style="font-weight:700;font-size:2em;letter-spacing:0.01em;">我的旅行计划</h1>
+            <p class="subtitle" style="color:#888;font-size:1.1em;">旅行 · 极简 · 精致可感</p>
+        </div>
+        <div class="timeline" id="plansTimeline"></div>
+    </div>
+    
+    <!-- 删除确认模态框 -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">确认删除</div>
+            <div class="modal-body">
+                确定要删除这个旅行计划吗？删除后将无法恢复，包括该计划下的所有游记。
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeDeleteModal()">取消</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">删除</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    let currentPlanId = null;
+    
+    async function loadPlans() {
+        const response = await fetch('/api/plans');
+        const data = await response.json();
+        const timeline = document.getElementById('plansTimeline');
+        timeline.innerHTML = '';
+        const allPlans = [...data.future, ...data.completed];
+        allPlans.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+        if (allPlans.length === 0) {
+            timeline.innerHTML = '<div style="text-align:center;color:#aaa;padding:60px 0;">暂无旅行计划</div>';
+            return;
+        }
+        allPlans.forEach(plan => {
+            const statusClass = plan.status === 'completed' ? 'status-badge status-completed' : 'status-badge';
+            const statusText = plan.status === 'completed' ? '已完成' : '进行中';
+            const startDate = new Date(plan.start_date);
+            const formattedDate = startDate.toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric'});
+            const card = document.createElement('div');
+            card.className = 'timeline-item';
+            card.innerHTML = `
+                <div class="timeline-dot"></div>
+                <div class="timeline-card" style="position: relative;">
+                    <div class="plan-actions">
+                        <button class="btn-icon" onclick="window.location.href='/plan/${plan.id}'" title="查看详情">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                        <button class="btn-icon delete" onclick="showDeleteModal(${plan.id}, '${plan.title}')" title="删除计划">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div onclick="window.location.href='/plan/${plan.id}'" style="cursor:pointer;">
+                        <div class="timeline-date">📅 ${formattedDate}</div>
+                        <div class="timeline-title">${plan.title}</div>
+                        <div class="timeline-info">⏱️ 行程天数：${plan.total_days}天</div>
+                        <div class="timeline-info">🎯 旅行主题：${plan.travel_theme}</div>
+                        <div class="timeline-info">💰 预算范围：${plan.budget_min} - ${plan.budget_max}元</div>
+                        <span class="${statusClass}">${statusText}</span>
+                    </div>
+                </div>
+            `;
+            timeline.appendChild(card);
+        });
+    }
+    
+    function showDeleteModal(planId, planTitle) {
+        currentPlanId = planId;
+        document.querySelector('#deleteModal .modal-body').innerHTML = 
+            `确定要删除旅行计划"${planTitle}"吗？删除后将无法恢复，包括该计划下的所有游记。`;
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        currentPlanId = null;
+    }
+    
+    async function deletePlan() {
+        if (!currentPlanId) return;
+        
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid #fff;border-top:2px solid transparent;border-radius:50%;animation:spin 1s linear infinite;"></div> 删除中...';
+        
+        try {
+            const response = await fetch(`/api/plan/${currentPlanId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                closeDeleteModal();
+                // 显示成功提示
+                showToast('计划删除成功', 'success');
+                // 重新加载计划列表
+                await loadPlans();
+            } else {
+                throw new Error(result.msg || '删除失败');
+            }
+        } catch (error) {
+            console.error('删除失败:', error);
+            showToast('删除失败: ' + error.message, 'error');
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '删除';
+        }
+    }
+    
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.style = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.3s;
+        `;
+        
+        if (type === 'success') {
+            toast.style.background = '#34C759';
+            toast.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                ${message}
+            `;
+        } else if (type === 'error') {
+            toast.style.background = '#FF3B30';
+            toast.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                ${message}
+            `;
+        }
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // 绑定删除确认按钮事件
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPlans();
+        document.getElementById('confirmDeleteBtn').onclick = deletePlan;
+        
+        // 点击模态框外部关闭
+        document.getElementById('deleteModal').onclick = function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        };
+    });
+    </script>
+</body>
+</html> 
