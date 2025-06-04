@@ -44,9 +44,9 @@ def init_database():
                 raise
     else:
         logger.info("在Railway环境运行数据库初始化...")
-    
-    with app.app_context():
-        try:
+        
+        with app.app_context():
+            try:
                 # Railway环境先执行迁移
                 from flask_migrate import upgrade
                 from sqlalchemy import inspect
@@ -123,14 +123,14 @@ def init_database():
 def create_sample_data():
     """创建示例数据"""
     try:
-            # 检查是否已有用户，如果没有则创建管理员账户
-            if not User.query.filter_by(username='admin').first():
+        # 检查是否已有用户，如果没有则创建管理员账户
+        if not User.query.filter_by(username='admin').first():
             # 使用较短的密码哈希避免长度问题
-                admin = User(
-                    username='admin',
+            admin = User(
+                username='admin',
                 password_hash=generate_password_hash('admin123'),  # 这应该生成适当长度的哈希
-                    email='admin@example.com'
-                )
+                email='admin@example.com'
+            )
             
             # 验证password_hash长度
             password_hash_length = len(admin.password_hash)
@@ -142,55 +142,55 @@ def create_sample_data():
                 admin.password_hash = generate_password_hash('admin123', method='pbkdf2:sha256', salt_length=8)
                 logger.info(f"简化后的password_hash长度: {len(admin.password_hash)}")
             
-                db.session.add(admin)
-                logger.info("创建管理员账户")
-                
-            # 添加一些示例目的地
-            destinations = [
-                {
-                    'name': '故宫', 
-                    'city': '北京',
-                    'province': '北京',
-                    'country': '中国',
-                    'latitude': 39.9163, 
-                    'longitude': 116.3972,
-                    'description': '中国明清两代的皇家宫殿，是中国古代宫廷建筑之精华。'
-                },
-                {
-                    'name': '西湖',
-                    'city': '杭州',
-                    'province': '浙江',
-                    'country': '中国',
-                    'latitude': 30.2587,
-                    'longitude': 120.1315,
-                    'description': '中国浙江省杭州市区西部的淡水湖，国家5A级旅游景区。'
-                },
-                {
-                    'name': '上海迪士尼乐园',
-                    'city': '上海',
-                    'province': '上海',
-                    'country': '中国',
-                    'latitude': 31.1433,
-                    'longitude': 121.6572,
-                    'description': '中国第一个迪士尼主题乐园，于2016年6月16日正式开园。'
-                }
-            ]
+            db.session.add(admin)
+            logger.info("创建管理员账户")
             
-            # 检查是否已有目的地数据
-            if not Destination.query.first():
-                for dest_data in destinations:
-                    dest = Destination(**dest_data)
-                    db.session.add(dest)
-                logger.info("添加示例目的地数据")
-            
-            # 提交更改
-            db.session.commit()
+        # 添加一些示例目的地
+        destinations = [
+            {
+                'name': '故宫', 
+                'city': '北京',
+                'province': '北京',
+                'country': '中国',
+                'latitude': 39.9163, 
+                'longitude': 116.3972,
+                'description': '中国明清两代的皇家宫殿，是中国古代宫廷建筑之精华。'
+            },
+            {
+                'name': '西湖',
+                'city': '杭州',
+                'province': '浙江',
+                'country': '中国',
+                'latitude': 30.2587,
+                'longitude': 120.1315,
+                'description': '中国浙江省杭州市区西部的淡水湖，国家5A级旅游景区。'
+            },
+            {
+                'name': '上海迪士尼乐园',
+                'city': '上海',
+                'province': '上海',
+                'country': '中国',
+                'latitude': 31.1433,
+                'longitude': 121.6572,
+                'description': '中国第一个迪士尼主题乐园，于2016年6月16日正式开园。'
+            }
+        ]
+        
+        # 检查是否已有目的地数据
+        if not Destination.query.first():
+            for dest_data in destinations:
+                dest = Destination(**dest_data)
+                db.session.add(dest)
+            logger.info("添加示例目的地数据")
+        
+        # 提交更改
+        db.session.commit()
         logger.info("✅ 示例数据创建完成！")
-            
-        except Exception as e:
+        
+    except Exception as e:
         logger.error(f"创建示例数据失败: {str(e)}")
-            db.session.rollback()
-            raise
+        db.session.rollback()
+        raise
 
 if __name__ == '__main__':
     init_database() 

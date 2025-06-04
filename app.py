@@ -621,7 +621,6 @@ def get_plans():
     plans = TravelPlan.query.filter_by(user_id=user_id).all()
     all_plans = []
     today = date.today()
-    
     for p in plans:
         # 动态判断状态
         plan_end_date = p.end_date if isinstance(p.end_date, date) else datetime.strptime(p.end_date, '%Y-%m-%d').date()
@@ -629,7 +628,6 @@ def get_plans():
             status = 'completed'
         else:
             status = p.status
-            
         plan_dict = {
             'id': p.id,
             'title': p.title,
@@ -646,9 +644,7 @@ def get_plans():
         }
         all_plans.append(plan_dict)
     
-    # 按创建时间倒序排列
-    all_plans.sort(key=lambda x: x['created_at'], reverse=True)
-    
+    # 返回格式修改为符合前端期望的格式
     return jsonify({
         'success': True,
         'plans': all_plans
@@ -2520,14 +2516,9 @@ def get_expense_stats():
         monthly_total = sum(expense.amount for expense in monthly_expenses)
         monthly_count = len(monthly_expenses)
         
-        # 计算实际消费天数（有消费记录的天数）
-        expense_dates = set()
-        for expense in monthly_expenses:
-            expense_date = expense.expense_date.date() if hasattr(expense.expense_date, 'date') else expense.expense_date
-            expense_dates.add(expense_date)
-        
-        actual_days = len(expense_dates) if expense_dates else 0
-        daily_average = monthly_total / actual_days if actual_days > 0 else 0
+        # 计算本月已过天数（从1号到今天）
+        days_passed = now.day
+        daily_average = monthly_total / days_passed if days_passed > 0 else 0
         
         # 获取主要分类
         category_stats = {}
