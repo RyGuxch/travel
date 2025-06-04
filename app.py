@@ -619,6 +619,8 @@ def get_plans():
     """获取所有旅行计划，分为已完成和未完成（根据end_date与当前日期判断）"""
     user_id = session['user_id']
     plans = TravelPlan.query.filter_by(user_id=user_id).all()
+    completed = []
+    future = []
     all_plans = []
     today = date.today()
     for p in plans:
@@ -643,11 +645,18 @@ def get_plans():
             'created_at': p.created_at.isoformat()
         }
         all_plans.append(plan_dict)
+        
+        if status == 'completed':
+            completed.append(plan_dict)
+        else:
+            future.append(plan_dict)
     
-    # 返回格式修改为符合前端期望的格式
+    # 返回兼容格式，同时支持旧版和新版
     return jsonify({
         'success': True,
-        'plans': all_plans
+        'plans': all_plans,      # 新格式，给开销管理页面用
+        'completed': completed,  # 旧格式，给计划页面用
+        'future': future        # 旧格式，给计划页面用
     })
 
 @app.route('/api/plan/<int:plan_id>')
