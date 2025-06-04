@@ -64,7 +64,7 @@ def init_database():
                 if len(existing_tables) == 0:
                     # 数据库为空，首次部署，直接创建所有表
                     logger.info("首次部署，创建数据库表...")
-            db.create_all()
+                    db.create_all()
                     logger.info("✅ 数据库表创建成功")
                 else:
                     # 数据库已存在，执行迁移
