@@ -445,11 +445,11 @@ class PlanDetailPage {
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>开始时间</label>
-                                <input type="text" class="form-input item-start-time" value="${item.start_time || ''}" placeholder="如：09:00">
+                                <input type="text" class="form-input item-start-time" value="${item.start_time || ''}" placeholder="如：09:00 或 09：00" pattern="[0-9]{1,2}[：:][0-9]{2}" title="请输入时间格式，如 09:00">
                             </div>
                             <div class="form-group">
                                 <label>结束时间</label>
-                                <input type="text" class="form-input item-end-time" value="${item.end_time || ''}" placeholder="如：11:00">
+                                <input type="text" class="form-input item-end-time" value="${item.end_time || ''}" placeholder="如：17:00 或 17：00" pattern="[0-9]{1,2}[：:][0-9]{2}" title="请输入时间格式，如 17:00">
                             </div>
                         </div>
                         <div class="form-group">
@@ -661,11 +661,11 @@ class PlanDetailPage {
         <div class="grid-2">
             <div class="form-group">
                 <label>开始时间</label>
-                <input type="text" class="form-input item-start-time" placeholder="如：09:00">
+                <input type="text" class="form-input item-start-time" placeholder="如：09:00 或 09：00" pattern="[0-9]{1,2}[：:][0-9]{2}" title="请输入时间格式，如 09:00">
             </div>
             <div class="form-group">
                 <label>结束时间</label>
-                <input type="text" class="form-input item-end-time" placeholder="如：11:00">
+                <input type="text" class="form-input item-end-time" placeholder="如：17:00 或 17：00" pattern="[0-9]{1,2}[：:][0-9]{2}" title="请输入时间格式，如 17:00">
             </div>
         </div>
         <div class="form-group">
@@ -777,10 +777,22 @@ class PlanDetailPage {
                 // 收集每个行程项的数据
                 const itemElements = dayElement.querySelectorAll('.edit-item');
                 itemElements.forEach(itemElement => {
+                    // 获取并处理时间字段，将中文冒号转换为英文冒号
+                    let startTime = itemElement.querySelector('.item-start-time').value.trim();
+                    let endTime = itemElement.querySelector('.item-end-time').value.trim();
+                    
+                    // 替换中文冒号为英文冒号
+                    if (startTime) {
+                        startTime = startTime.replace(/：/g, ':');
+                    }
+                    if (endTime) {
+                        endTime = endTime.replace(/：/g, ':');
+                    }
+                    
                     const updatedItem = {
                         title: itemElement.querySelector('.item-title').value.trim(),
-                        start_time: itemElement.querySelector('.item-start-time').value.trim(),
-                        end_time: itemElement.querySelector('.item-end-time').value.trim(),
+                        start_time: startTime,
+                        end_time: endTime,
                         location: itemElement.querySelector('.item-location').value.trim(),
                         longitude: parseFloat(itemElement.querySelector('.item-longitude').value) || null,
                         latitude: parseFloat(itemElement.querySelector('.item-latitude').value) || null,

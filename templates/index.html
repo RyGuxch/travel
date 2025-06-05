@@ -12,7 +12,7 @@
         <div class="navbar-container">
             <a href="/" class="logo">🌍 Travel Agent</a>
             <div class="nav-links">
-                <a href="/">首页</a>
+                <a href="/" class="active">首页</a>
                 <a href="/plans">我的计划</a>
                 <a href="/notes">全部游记</a>
                 <a href="/expenses">开销</a>
@@ -190,7 +190,7 @@
         }).then(r=>r.json()).then(data=>{
             const box = document.getElementById('navUserBox');
             if(data.logged_in) {
-                box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+                box.innerHTML = `<a href="/profile" style="color: var(--text-primary); text-decoration: none; margin-right: 12px; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(0,0,0,0.05)'" onmouseout="this.style.backgroundColor='transparent'">👤 ${data.username}</a><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
             } else {
                 box.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
             }

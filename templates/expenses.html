@@ -84,16 +84,16 @@
             font-size: 32px;
             font-weight: 700;
             margin-bottom: 8px;
-            background: linear-gradient(45deg, #FFFFFF, rgba(255,255,255,0.8));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #FFFFFF;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
         
         .stat-label {
             font-size: 15px;
-            opacity: 0.9;
+            opacity: 0.95;
             font-weight: 500;
+            color: #FFFFFF;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
         
         /* 主要内容卡片 */
@@ -855,6 +855,40 @@
             <a href="#" class="filter-tab" data-filter="其他">📝 其他</a>
         </div>
 
+        <!-- 按计划筛选器 -->
+        <div class="expense-card">
+            <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                📋 按计划查看开销
+            </h3>
+            <div class="plan-filter-controls">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <select id="planFilter" class="form-input" onchange="filterByPlan()">
+                        <option value="">查看所有计划的开销</option>
+                    </select>
+                </div>
+                <div id="planExpenseStats" style="display: none; margin-top: 16px; padding: 16px; background: linear-gradient(145deg, #F0F8FF, #E6F3FF); border-radius: 12px; border: 1px solid rgba(0, 122, 255, 0.2);">
+                    <div class="plan-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; text-align: center;">
+                        <div>
+                            <div class="stat-value" id="planTotalAmount" style="font-size: 18px; font-weight: 600; color: #1d1d1f;">¥0</div>
+                            <div class="stat-label" style="font-size: 12px; color: #6e6e73;">总开销</div>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="planExpenseCount" style="font-size: 18px; font-weight: 600; color: #1d1d1f;">0</div>
+                            <div class="stat-label" style="font-size: 12px; color: #6e6e73;">消费笔数</div>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="planAvgDaily" style="font-size: 18px; font-weight: 600; color: #1d1d1f;">¥0</div>
+                            <div class="stat-label" style="font-size: 12px; color: #6e6e73;">日均开销</div>
+                        </div>
+                        <div>
+                            <div class="stat-value" id="planTopCategory" style="font-size: 18px; font-weight: 600; color: #1d1d1f;">-</div>
+                            <div class="stat-label" style="font-size: 12px; color: #6e6e73;">主要分类</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 开销列表 -->
         <div class="expense-list" id="expenseList">
             <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
@@ -875,6 +909,7 @@
         let currentFilter = 'all';
         let currentPage = 1;
         let totalPages = 1;
+        let currentPlanFilter = ''; // 添加计划筛选变量
 
         // 登录相关功能
         function renderUserBox() {
@@ -883,7 +918,7 @@
             }).then(r=>r.json()).then(data=>{
                 const box = document.getElementById('navUserBox');
                 if(data.logged_in) {
-                    box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+                    box.innerHTML = `<a href="/profile" style="color: var(--text-primary); text-decoration: none; margin-right: 12px; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(0,0,0,0.05)'" onmouseout="this.style.backgroundColor='transparent'">👤 ${data.username}</a><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
                 } else {
                     box.innerHTML = `<button class='btn btn-small btn-primary' onclick='showLoginModal()'>登录</button>`;
                 }
@@ -1059,6 +1094,17 @@
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('login_required') === '1') {
                 showLoginModal('请登录后再访问此页面');
+            }
+        });
+
+        // 页面可见性变化时刷新数据
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                // 页面变为可见时，刷新数据
+                setTimeout(() => {
+                    loadExpenses();
+                    loadStats();
+                }, 500);
             }
         });
 
@@ -1316,6 +1362,8 @@
             .then(data => {
                 if (data.success) {
                     document.querySelector('.modal').remove();
+                    // 重置到第一页并强制刷新
+                    currentPage = 1;
                     loadExpenses();
                     loadStats();
                     alert('开销记录保存成功！');
@@ -1360,6 +1408,9 @@
                     if (data.success) {
                         this.reset();
                         toggleManualForm();
+                        
+                        // 重置到第一页并强制刷新
+                        currentPage = 1;
                         loadExpenses();
                         loadStats();
                         alert('开销记录保存成功！');
@@ -1400,14 +1451,26 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        // 更新手动添加表单的计划选择器
                         const planSelect = document.getElementById('planId');
                         planSelect.innerHTML = '<option value="">不关联计划</option>';
                         
+                        // 更新计划筛选器
+                        const planFilter = document.getElementById('planFilter');
+                        planFilter.innerHTML = '<option value="">查看所有计划的开销</option>';
+                        
                         data.plans.forEach(plan => {
+                            // 手动添加表单选项
                             const option = document.createElement('option');
                             option.value = plan.id;
                             option.textContent = plan.title;
                             planSelect.appendChild(option);
+                            
+                            // 筛选器选项
+                            const filterOption = document.createElement('option');
+                            filterOption.value = plan.id;
+                            filterOption.textContent = `${plan.title} (${plan.destination})`;
+                            planFilter.appendChild(filterOption);
                         });
                     }
                 })
@@ -1418,10 +1481,19 @@
         function loadExpenses() {
             const params = new URLSearchParams({
                 page: currentPage,
-                category: currentFilter === 'all' ? '' : currentFilter
+                category: currentFilter === 'all' ? '' : currentFilter,
+                plan_id: currentPlanFilter,
+                t: Date.now() // 添加时间戳防止缓存
             });
 
-            fetch(`/api/expenses?${params}`, {credentials: 'include'})
+            fetch(`/api/expenses?${params}`, {
+                credentials: 'include',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1430,6 +1502,13 @@
                         
                         const loadMoreBtn = document.getElementById('loadMoreBtn');
                         loadMoreBtn.style.display = currentPage < totalPages ? 'block' : 'none';
+                        
+                        // 如果是按计划筛选，计算并显示计划开销统计
+                        if (currentPlanFilter) {
+                            calculatePlanStats(data.expenses);
+                        } else {
+                            document.getElementById('planExpenseStats').style.display = 'none';
+                        }
                     }
                 })
                 .catch(error => console.error('加载开销列表失败:', error));
@@ -1497,7 +1576,14 @@
 
         // 加载统计数据
         function loadStats() {
-            fetch('/api/expenses/stats', {credentials: 'include'})
+            fetch(`/api/expenses/stats?t=${Date.now()}`, {
+                credentials: 'include',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1719,6 +1805,8 @@
             .then(data => {
                 if (data.success) {
                     document.querySelector('.modal').remove();
+                    // 重置到第一页并强制刷新
+                    currentPage = 1;
                     loadExpenses();
                     loadStats();
                     alert('开销记录更新成功！');
@@ -1742,6 +1830,8 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        // 重置到第一页并强制刷新
+                        currentPage = 1;
                         loadExpenses();
                         loadStats();
                         alert('开销记录删除成功！');
@@ -1754,6 +1844,76 @@
                     alert('删除失败，请重试');
                 });
             }
+        }
+
+        // 按计划筛选
+        function filterByPlan() {
+            const planFilter = document.getElementById('planFilter').value;
+            currentPlanFilter = planFilter;
+            currentPage = 1;
+            
+            // 重置分类筛选为全部
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.filter-tab[data-filter="all"]').classList.add('active');
+            currentFilter = 'all';
+            
+            loadExpenses();
+        }
+        
+        // 计算特定计划的开销统计
+        function calculatePlanStats(expenses) {
+            if (!expenses || expenses.length === 0) {
+                document.getElementById('planExpenseStats').style.display = 'none';
+                return;
+            }
+            
+            let totalAmount = 0;
+            const categoryStats = {};
+            
+            expenses.forEach(expense => {
+                totalAmount += expense.amount;
+                
+                if (expense.category in categoryStats) {
+                    categoryStats[expense.category] += expense.amount;
+                } else {
+                    categoryStats[expense.category] = expense.amount;
+                }
+            });
+            
+            // 计算主要分类
+            const topCategory = Object.keys(categoryStats).reduce((a, b) => 
+                categoryStats[a] > categoryStats[b] ? a : b, Object.keys(categoryStats)[0] || '-'
+            );
+            
+            // 获取选中计划的天数来计算日均开销
+            const selectedPlanId = document.getElementById('planFilter').value;
+            fetch(`/api/plans/${selectedPlanId}`, {credentials: 'include'})
+                .then(response => response.json())
+                .then(data => {
+                    let avgDaily = 0;
+                    if (data.success && data.plan.total_days > 0) {
+                        avgDaily = totalAmount / data.plan.total_days;
+                    }
+                    
+                    // 更新统计显示
+                    document.getElementById('planTotalAmount').textContent = `¥${totalAmount.toFixed(2)}`;
+                    document.getElementById('planExpenseCount').textContent = expenses.length;
+                    document.getElementById('planAvgDaily').textContent = `¥${avgDaily.toFixed(2)}`;
+                    document.getElementById('planTopCategory').textContent = topCategory;
+                    
+                    document.getElementById('planExpenseStats').style.display = 'block';
+                })
+                .catch(error => {
+                    // 如果获取计划详情失败，使用简单的日均计算
+                    const avgDaily = expenses.length > 0 ? totalAmount / expenses.length : 0;
+                    
+                    document.getElementById('planTotalAmount').textContent = `¥${totalAmount.toFixed(2)}`;
+                    document.getElementById('planExpenseCount').textContent = expenses.length;
+                    document.getElementById('planAvgDaily').textContent = `¥${avgDaily.toFixed(2)}`;
+                    document.getElementById('planTopCategory').textContent = topCategory;
+                    
+                    document.getElementById('planExpenseStats').style.display = 'block';
+                });
         }
     </script>
 </body>

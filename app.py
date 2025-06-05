@@ -234,8 +234,13 @@ def process_plan_generation_task(task_id, user_id, data):
                     
                     # 保存行程项目
                     for idx, item in enumerate(day_data.get('items', [])):
+                        # 处理时间格式，将中文冒号转换为英文冒号
+                        time_str = item.get('time', '09:00')
+                        if time_str:
+                            time_str = time_str.replace('：', ':')
+                        
                         itinerary_item = ItineraryItem(
-                            start_time=datetime.strptime(item.get('time', '09:00'), '%H:%M').time(),
+                            start_time=datetime.strptime(time_str, '%H:%M').time(),
                             activity_type='visit',
                             title=item.get('activity', ''),
                             description=item.get('description', ''),
@@ -949,8 +954,18 @@ def update_plan(plan_id):
                     
                     # 添加新的行程项
                     for idx, item_data in enumerate(itinerary_data.get('items', [])):
-                        start_time = datetime.strptime(item_data.get('start_time', '00:00'), '%H:%M').time() if item_data.get('start_time') else None
-                        end_time = datetime.strptime(item_data.get('end_time', '00:00'), '%H:%M').time() if item_data.get('end_time') else None
+                        # 处理时间格式，将中文冒号转换为英文冒号
+                        start_time_str = item_data.get('start_time', '00:00')
+                        end_time_str = item_data.get('end_time', '00:00')
+                        
+                        # 替换中文冒号为英文冒号
+                        if start_time_str:
+                            start_time_str = start_time_str.replace('：', ':')
+                        if end_time_str:
+                            end_time_str = end_time_str.replace('：', ':')
+                        
+                        start_time = datetime.strptime(start_time_str, '%H:%M').time() if start_time_str else None
+                        end_time = datetime.strptime(end_time_str, '%H:%M').time() if end_time_str else None
                         
                         new_item = ItineraryItem(
                             itinerary_id=itinerary.id,
@@ -1271,7 +1286,11 @@ def logout():
 @app.route('/api/userinfo')
 def userinfo():
     if 'user_id' in session:
-        return jsonify({'logged_in': True, 'username': session.get('username')})
+        return jsonify({
+            'logged_in': True, 
+            'username': session.get('username'),
+            'user_id': session.get('user_id')
+        })
     else:
         return jsonify({'logged_in': False})
 
@@ -1315,6 +1334,12 @@ def cleanup_old_tasks():
 def friends_page():
     """好友管理页面"""
     return render_template('friends.html')
+
+@app.route('/profile')
+@login_required_page
+def profile_page():
+    """用户个人主页"""
+    return render_template('profile.html')
 
 @app.route('/api/friends')
 @login_required
@@ -2922,6 +2947,144 @@ def get_shared_plan_detail(plan_id, share_token):
         
     except Exception as e:
         return jsonify({'success': False, 'msg': f'获取计划数据失败: {str(e)}'}), 500
+
+@app.route('/api/profile')
+@login_required
+def get_profile():
+    """获取用户个人资料和统计信息"""
+    user_id = session.get('user_id')
+    
+    # 获取用户基本信息
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'success': False, 'msg': '用户不存在'})
+    
+    # 统计旅行计划
+    total_plans = TravelPlan.query.filter_by(user_id=user_id).count()
+    completed_plans = TravelPlan.query.filter_by(user_id=user_id, status='completed').count()
+    
+    # 统计游记
+    total_notes = TravelNote.query.join(TravelPlan).filter(TravelPlan.user_id == user_id).count()
+    
+    # 统计动态
+    total_moments = Moment.query.filter_by(user_id=user_id).count()
+    
+    # 统计好友数量
+    friends_sent = Friend.query.filter_by(user_id=user_id).count()
+    friends_received = Friend.query.filter_by(friend_id=user_id).count()
+    total_friends = friends_sent + friends_received
+    
+    # 统计开销
+    total_expenses = Expense.query.filter_by(user_id=user_id).count()
+    total_spent = db.session.query(db.func.sum(Expense.amount)).filter_by(user_id=user_id).scalar() or 0
+    
+    # 获取最近的动态（最多5条）
+    recent_moments = Moment.query.filter_by(user_id=user_id).order_by(Moment.created_at.desc()).limit(5).all()
+    
+    # 获取最近的旅行计划（最多3条）
+    recent_plans = TravelPlan.query.filter_by(user_id=user_id).order_by(TravelPlan.created_at.desc()).limit(3).all()
+    
+    # 获取消费分布（按分类）
+    expense_categories = db.session.query(
+        Expense.category,
+        db.func.sum(Expense.amount),
+        db.func.count(Expense.id)
+    ).filter_by(user_id=user_id).group_by(Expense.category).all()
+    
+    return jsonify({
+        'success': True,
+        'profile': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'created_at': user.created_at.strftime('%Y-%m-%d'),
+            'stats': {
+                'total_plans': total_plans,
+                'completed_plans': completed_plans,
+                'total_notes': total_notes,
+                'total_moments': total_moments,
+                'total_friends': total_friends,
+                'total_expenses': total_expenses,
+                'total_spent': round(total_spent, 2)
+            },
+            'recent_moments': [{
+                'id': moment.id,
+                'content': moment.content[:100] + ('...' if len(moment.content) > 100 else ''),
+                'created_at': moment.created_at.strftime('%Y-%m-%d %H:%M'),
+                'visibility': moment.visibility
+            } for moment in recent_moments],
+            'recent_plans': [{
+                'id': plan.id,
+                'title': plan.title,
+                'start_date': plan.start_date.strftime('%Y-%m-%d'),
+                'end_date': plan.end_date.strftime('%Y-%m-%d'),
+                'status': plan.status,
+                'total_days': plan.total_days
+            } for plan in recent_plans],
+            'expense_categories': [{
+                'category': category[0],
+                'amount': round(category[1], 2),
+                'count': category[2]
+            } for category in expense_categories]
+        }
+    })
+
+@app.route('/api/profile/update', methods=['PUT'])
+@login_required
+def update_profile():
+    """更新用户个人资料"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+        
+        # 获取用户对象
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'msg': '用户不存在'})
+        
+        # 更新邮箱（如果提供）
+        email = data.get('email')
+        if email is not None:
+            # 验证邮箱格式
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if email and not re.match(email_pattern, email):
+                return jsonify({'success': False, 'msg': '邮箱格式不正确'})
+            
+            # 检查邮箱是否已被使用
+            if email and User.query.filter(User.email == email, User.id != user_id).first():
+                return jsonify({'success': False, 'msg': '邮箱已被使用'})
+            
+            user.email = email
+        
+        # 更新用户名（如果提供）
+        username = data.get('username')
+        if username is not None:
+            username = username.strip()
+            if not username:
+                return jsonify({'success': False, 'msg': '用户名不能为空'})
+            
+            # 检查用户名是否已被使用
+            if User.query.filter(User.username == username, User.id != user_id).first():
+                return jsonify({'success': False, 'msg': '用户名已被使用'})
+            
+            user.username = username
+            session['username'] = username  # 更新session
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'msg': '个人资料更新成功',
+            'profile': {
+                'username': user.username,
+                'email': user.email
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'msg': f'更新失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     import os

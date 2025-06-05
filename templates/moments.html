@@ -607,11 +607,13 @@
                 loadMoreBtn.textContent = '加载中...';
                 loadMoreBtn.disabled = true;
                 
-                const response = await fetch(`/api/moments?page=${page}&per_page=10&filter=${currentFilter}`, {
+                const response = await fetch(`/api/moments?page=${page}&per_page=10&filter=${currentFilter}&t=${Date.now()}`, {
                     credentials: 'include',
                     headers: {
                         'Accept': 'application/json',
-                        'Cache-Control': 'no-cache'
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
                     }
                 });
                 
@@ -980,6 +982,7 @@
                 
                 // 更新筛选条件并重新加载
                 currentFilter = filter;
+                currentPage = 1;
                 loadMoments(1, false);
             });
         });
@@ -1148,7 +1151,8 @@
                     uploadedMedia = [];
                     mediaPreview.innerHTML = '';
                     
-                    // 重新加载动态
+                    // 重置到第一页并重新加载动态
+                    currentPage = 1;
                     await loadMoments(1, false);
                     
                     // 显示成功提示
@@ -1586,7 +1590,14 @@
                         
                         setTimeout(() => {
                             momentCard.remove();
+                            // 重新加载动态列表以确保数据同步
+                            currentPage = 1;
+                            loadMoments(1, false);
                         }, 300);
+                    } else {
+                        // 如果DOM元素不存在，直接刷新列表
+                        currentPage = 1;
+                        loadMoments(1, false);
                     }
                     
                     deleteModal.style.display = 'none';
@@ -1676,6 +1687,17 @@
             }
         });
         
+        // 页面可见性变化时刷新数据
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                // 页面变为可见时，刷新动态列表
+                setTimeout(() => {
+                    currentPage = 1;
+                    loadMoments(1, false);
+                }, 500);
+            }
+        });
+        
         // 渲染用户信息框
         function renderUserBox() {
             try {
@@ -1700,8 +1722,10 @@
                     if (data.logged_in) {
                         navUserBox.innerHTML = `
                             <div style="display:flex; align-items:center;">
-                                <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
-                                <span>${data.username}</span>
+                                <a href="/profile" style="color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(0,0,0,0.05)'" onmouseout="this.style.backgroundColor='transparent'">
+                                    <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
+                                    <span>${data.username}</span>
+                                </a>
                                 <button class='btn btn-small btn-outline' style="margin-left:12px;" onclick='logoutUser()'>登出</button>
                             </div>
                         `;
@@ -1950,7 +1974,8 @@
                         }, 500);
                     }, 2000);
                     
-                    // 重新加载动态
+                    // 重置到第一页并重新加载动态
+                    currentPage = 1;
                     await loadMoments(1, false);
                 } else {
                     throw new Error(result.msg || '更新失败');

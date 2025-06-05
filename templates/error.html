@@ -119,7 +119,7 @@
             }).then(r=>r.json()).then(data=>{
                 const box = document.getElementById('navUserBox');
                 if(data.logged_in) {
-                    box.innerHTML = `<span style='margin-right:12px;'>👤 ${data.username}</span><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
+                    box.innerHTML = `<a href="/profile" style="color: var(--text-primary); text-decoration: none; margin-right: 12px; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(0,0,0,0.05)'" onmouseout="this.style.backgroundColor='transparent'">👤 ${data.username}</a><button class='btn btn-small btn-outline' onclick='logoutUser()'>登出</button>`;
                 } else {
                     box.innerHTML = `<button class='btn btn-small btn-primary' onclick='window.location.href="/"'>登录</button>`;
                 }
