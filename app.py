@@ -18,6 +18,7 @@ import time
 from flask_migrate import Migrate
 from ocr_service import ocr_service
 import base64
+import sqlalchemy as sa
 
 # 任务存储
 tasks = {}
@@ -3287,6 +3288,47 @@ def get_notification_settings():
         
     except Exception as e:
         return jsonify({'success': False, 'msg': f'获取通知设置失败: {str(e)}'}), 500
+
+@app.route('/api/admin/create-push-table', methods=['POST'])
+@login_required
+def create_push_table():
+    """管理接口：手动创建推送通知表"""
+    try:
+        # 检查用户权限（这里简化处理，可以根据需要添加管理员验证）
+        user_id = session['user_id']
+        
+        # 创建push_subscriptions表的SQL
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            endpoint VARCHAR(500) NOT NULL,
+            p256dh VARCHAR(200) NOT NULL,
+            auth VARCHAR(50) NOT NULL,
+            user_agent VARCHAR(500),
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, endpoint)
+        );
+        """
+        
+        # 执行SQL
+        db.session.execute(sa.text(create_table_sql))
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'msg': 'push_subscriptions表创建成功'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'msg': f'创建表失败: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     import os

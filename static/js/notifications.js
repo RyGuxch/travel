@@ -2,8 +2,57 @@
 class NotificationManager {
     constructor() {
         this.swRegistration = null;
-        this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
-        this.init();
+        
+        // 检查浏览器支持（改进Safari检测）
+        this.isSupported = this.checkBrowserSupport();
+        console.log('通知支持状态:', this.isSupported);
+        
+        if (this.isSupported) {
+            this.init();
+        }
+    }
+    
+    checkBrowserSupport() {
+        // 基本功能检查
+        if (!('serviceWorker' in navigator)) {
+            console.log('Service Worker不被支持');
+            return false;
+        }
+        
+        if (!('PushManager' in window)) {
+            console.log('Push Manager不被支持');
+            return false;
+        }
+        
+        if (!('Notification' in window)) {
+            console.log('Notification API不被支持');
+            return false;
+        }
+        
+        // Safari特殊检查
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isSafari = userAgent.includes('safari') && !userAgent.includes('chrome');
+        
+        if (isSafari) {
+            // Safari从iOS 16.4+和macOS开始支持Web Push
+            const isIOS = /iphone|ipad|ipod/.test(userAgent);
+            const isMac = userAgent.includes('macintosh');
+            
+            if (isIOS) {
+                // iOS Safari从16.4开始支持，但可能有限制
+                console.log('检测到iOS Safari，推送通知支持可能有限');
+                return true; // 让它尝试，但用户可能需要手动启用
+            } else if (isMac) {
+                // macOS Safari支持更好
+                console.log('检测到macOS Safari，推送通知应该被支持');
+                return true;
+            } else {
+                console.log('未知Safari版本，尝试检测支持');
+                return true;
+            }
+        }
+        
+        return true;
     }
 
     async init() {

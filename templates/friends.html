@@ -123,6 +123,7 @@
                     </div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-small" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="toggleNotifications()" id="notificationToggle">启用通知</button>
+                        <button class="btn btn-small" style="background: rgba(255,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="fixDatabase()" id="fixDbBtn">修复数据库</button>
                     </div>
                 </div>
             </div>
@@ -817,6 +818,31 @@
         } catch (error) {
             console.error('切换通知状态失败:', error);
             alert('操作失败：' + error.message);
+        }
+    }
+    
+    // 修复数据库（创建推送通知表）
+    async function fixDatabase() {
+        try {
+            const response = await fetch('/api/admin/create-push-table', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('数据库修复成功！push_subscriptions表已创建。');
+                // 隐藏修复按钮
+                document.getElementById('fixDbBtn').style.display = 'none';
+                // 重新初始化通知功能
+                await updateNotificationStatus();
+            } else {
+                alert('数据库修复失败：' + data.msg);
+            }
+        } catch (error) {
+            console.error('修复数据库失败:', error);
+            alert('修复数据库失败：' + error.message);
         }
     }
     </script>
