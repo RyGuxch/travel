@@ -1723,8 +1723,8 @@
                         navUserBox.innerHTML = `
                             <div style="display:flex; align-items:center;">
                                 <a href="/profile" style="color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(0,0,0,0.05)'" onmouseout="this.style.backgroundColor='transparent'">
-                                    <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
-                                    <span>${data.username}</span>
+                                <div class="avatar" style="width:32px; height:32px; font-size:14px; margin-right:8px;">${data.username[0].toUpperCase()}</div>
+                                <span>${data.username}</span>
                                 </a>
                                 <button class='btn btn-small btn-outline' style="margin-left:12px;" onclick='logoutUser()'>登出</button>
                             </div>

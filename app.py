@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 from config import Config
-from database.models import db, User, Destination, Attraction, TravelPlan, Itinerary, ItineraryItem, TravelNote, Friend, FriendRequest, Message, Expense, ExpenseBudget, ExpenseCategory, Moment, MomentLike, MomentComment
+from database.models import db, User, Destination, Attraction, TravelPlan, Itinerary, ItineraryItem, TravelNote, Friend, FriendRequest, Message, Expense, ExpenseBudget, ExpenseCategory, Moment, MomentLike, MomentComment, PushSubscription
 import json
 from openai import OpenAI
 from datetime import datetime, date, timedelta
@@ -17,6 +17,7 @@ import uuid
 import time
 from flask_migrate import Migrate
 from ocr_service import ocr_service
+import base64
 
 # 任务存储
 tasks = {}
@@ -489,6 +490,12 @@ def process_report_generation_task(task_id, user_id):
 def index():
     """主页面"""
     return render_template('index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    """网站图标"""
+    from flask import send_from_directory
+    return send_from_directory(app.static_folder, 'travel-icon.svg', mimetype='image/svg+xml')
 
 @app.route('/plans')
 @login_required_page
@@ -1338,7 +1345,7 @@ def friends_page():
 @app.route('/profile')
 @login_required_page
 def profile_page():
-    """用户个人主页"""
+    """个人主页"""
     return render_template('profile.html')
 
 @app.route('/api/friends')
@@ -1734,6 +1741,18 @@ def send_message():
     try:
         db.session.add(message)
         db.session.commit()
+        
+        # 获取发送者用户信息
+        sender = User.query.get(session['user_id'])
+        
+        # 发送推送通知
+        send_push_notification(receiver_id, {
+            'title': f'{sender.username}发来消息',
+            'body': content[:50] + ('...' if len(content) > 50 else ''),
+            'url': f'/chat/{session["user_id"]}',
+            'sender': sender.username,
+            'messageId': message.id
+        })
         
         return jsonify({
             'success': True, 
@@ -3085,6 +3104,189 @@ def update_profile():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'msg': f'更新失败: {str(e)}'}), 500
+
+# ============ Web推送通知功能 ============
+
+def send_push_notification(user_id, data):
+    """发送推送通知给指定用户"""
+    try:
+        # 获取用户的所有活跃推送订阅
+        subscriptions = PushSubscription.query.filter_by(user_id=user_id, is_active=True).all()
+        
+        if not subscriptions:
+            print(f"用户 {user_id} 没有活跃的推送订阅")
+            return
+        
+        # 准备推送数据
+        push_data = json.dumps(data)
+        
+        successful_sends = 0
+        failed_sends = 0
+        
+        for subscription in subscriptions:
+            try:
+                # 构建推送请求
+                headers = {
+                    'Content-Type': 'application/json',
+                    'TTL': '86400'  # 24小时过期
+                }
+                
+                # 发送推送通知（简化版本，不使用VAPID签名）
+                response = requests.post(
+                    subscription.endpoint,
+                    data=push_data,
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200 or response.status_code == 201:
+                    # 更新最后使用时间
+                    subscription.last_used = datetime.utcnow()
+                    successful_sends += 1
+                elif response.status_code == 410:
+                    # 订阅已失效
+                    subscription.is_active = False
+                    print(f"订阅已失效，标记为不活跃: {subscription.id}")
+                    failed_sends += 1
+                else:
+                    print(f"推送失败，状态码: {response.status_code}")
+                    failed_sends += 1
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"推送失败 (RequestException): {e}")
+                failed_sends += 1
+            except Exception as e:
+                print(f"推送失败 (Exception): {e}")
+                failed_sends += 1
+        
+        # 提交数据库更改
+        db.session.commit()
+        
+        print(f"推送通知发送完成: {successful_sends}成功, {failed_sends}失败")
+        
+    except Exception as e:
+        print(f"发送推送通知时出错: {e}")
+        db.session.rollback()
+
+@app.route('/api/vapid-public-key')
+@login_required
+def get_vapid_public_key():
+    """获取VAPID公钥"""
+    return jsonify({
+        'success': True,
+        'public_key': app.config['VAPID_PUBLIC_KEY']
+    })
+
+@app.route('/api/save-subscription', methods=['POST'])
+@login_required
+def save_subscription():
+    """保存推送订阅"""
+    try:
+        data = request.get_json()
+        subscription_data = data.get('subscription')
+        
+        if not subscription_data:
+            return jsonify({'success': False, 'msg': '订阅数据无效'})
+        
+        user_id = session['user_id']
+        endpoint = subscription_data.get('endpoint')
+        keys = subscription_data.get('keys', {})
+        p256dh = keys.get('p256dh')
+        auth = keys.get('auth')
+        
+        if not all([endpoint, p256dh, auth]):
+            return jsonify({'success': False, 'msg': '订阅数据不完整'})
+        
+        # 检查是否已存在相同的订阅
+        existing = PushSubscription.query.filter_by(
+            user_id=user_id,
+            endpoint=endpoint
+        ).first()
+        
+        if existing:
+            # 更新现有订阅
+            existing.p256dh = p256dh
+            existing.auth = auth
+            existing.is_active = True
+            existing.last_used = datetime.utcnow()
+            existing.user_agent = request.headers.get('User-Agent', '')
+        else:
+            # 创建新订阅
+            new_subscription = PushSubscription(
+                user_id=user_id,
+                endpoint=endpoint,
+                p256dh=p256dh,
+                auth=auth,
+                user_agent=request.headers.get('User-Agent', '')
+            )
+            db.session.add(new_subscription)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'msg': '订阅保存成功'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'msg': f'保存订阅失败: {str(e)}'}), 500
+
+@app.route('/api/remove-subscription', methods=['POST'])
+@login_required
+def remove_subscription():
+    """移除推送订阅"""
+    try:
+        data = request.get_json()
+        subscription_data = data.get('subscription')
+        
+        if not subscription_data:
+            return jsonify({'success': False, 'msg': '订阅数据无效'})
+        
+        user_id = session['user_id']
+        endpoint = subscription_data.get('endpoint')
+        
+        if not endpoint:
+            return jsonify({'success': False, 'msg': '端点信息缺失'})
+        
+        # 查找并删除订阅
+        subscription = PushSubscription.query.filter_by(
+            user_id=user_id,
+            endpoint=endpoint
+        ).first()
+        
+        if subscription:
+            db.session.delete(subscription)
+            db.session.commit()
+            return jsonify({'success': True, 'msg': '订阅移除成功'})
+        else:
+            return jsonify({'success': False, 'msg': '订阅不存在'})
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'msg': f'移除订阅失败: {str(e)}'}), 500
+
+@app.route('/api/notification-settings')
+@login_required
+def get_notification_settings():
+    """获取通知设置"""
+    try:
+        user_id = session['user_id']
+        
+        # 获取用户的活跃订阅数量
+        active_subscriptions = PushSubscription.query.filter_by(
+            user_id=user_id,
+            is_active=True
+        ).count()
+        
+        return jsonify({
+            'success': True,
+            'settings': {
+                'has_subscriptions': active_subscriptions > 0,
+                'subscription_count': active_subscriptions,
+                'supported': True  # 前端会检查浏览器支持
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'msg': f'获取通知设置失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     import os

@@ -40,3 +40,9 @@ class Config:
     # 文件上传配置
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'static/uploads'
     MAX_CONTENT_LENGTH = 256 * 1024 * 1024  # 100MB最大文件大小，支持视频和GIF上传 
+    
+    # Web推送通知配置 (VAPID)
+    # 这些是有效的VAPID密钥对，用于Web推送通知
+    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or 'JQGdBtLpUJiGgcnTY6BDU9vnQMEz3VpkcRoQF_79SpU'
+    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY') or 'BMlbrHxiYertjOpPiejcdrvO8OmWuZ6Ys9nxDw_cKfB5zc8mAX-WjsqntI1TbvOEtYbkiy6KeTbahNJzFIWvS4M'
+    VAPID_SUBJECT = os.environ.get('VAPID_SUBJECT') or 'mailto:admin@travel-agent.com' 

@@ -114,6 +114,19 @@
             <h1 class="title-large">好友管理</h1>
             <p class="subtitle">管理您的好友，查看和处理好友请求</p>
             
+            <!-- 通知设置区域 -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 16px; margin-bottom: 24px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 16px;">💬 消息推送通知</h3>
+                        <p style="margin: 0; font-size: 14px; opacity: 0.9;" id="notificationStatus">正在检查通知状态...</p>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-small" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="toggleNotifications()" id="notificationToggle">启用通知</button>
+                    </div>
+                </div>
+            </div>
+            
             <div class="tabs">
                 <div class="tab active" data-tab="friends">我的好友</div>
                 <div class="tab" data-tab="requests">好友请求 <span id="requestCount" class="badge"></span></div>
@@ -316,6 +329,9 @@
         renderUserBox();
         loadFriends();
         loadFriendRequests();
+        
+        // 初始化通知功能
+        initNotifications();
         
         // 标签切换
         document.querySelectorAll('.tab').forEach(tab => {
@@ -633,6 +649,174 @@
             // 移除通知
             const msgNotif = document.getElementById('navMsgNotif');
             if (msgNotif) msgNotif.remove();
+        }
+    }
+    
+    // ============ 通知功能相关 ============
+    
+    // 初始化通知功能
+    async function initNotifications() {
+        try {
+            console.log('开始初始化通知功能...');
+            
+            // 加载通知脚本
+            if (!window.notificationManager) {
+                console.log('加载通知脚本...');
+                await loadNotificationScript();
+            }
+            
+            // 等待一小段时间确保脚本完全加载
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // 初始化通知管理器
+            if (window.notificationManager) {
+                console.log('初始化通知管理器...');
+                await window.notificationManager.init();
+            }
+            
+            console.log('检查通知状态...');
+            // 检查通知状态
+            await updateNotificationStatus();
+            
+            // 检查通知设置
+            checkNotificationSettings();
+            
+            console.log('通知功能初始化完成');
+        } catch (error) {
+            console.error('初始化通知功能失败:', error);
+            await updateNotificationStatus('通知功能不可用');
+        }
+    }
+    
+    // 动态加载通知脚本
+    function loadNotificationScript() {
+        return new Promise((resolve, reject) => {
+            if (window.notificationManager) {
+                resolve();
+                return;
+            }
+            
+            const script = document.createElement('script');
+            script.src = '/static/js/notifications.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+    
+    // 更新通知状态显示
+    async function updateNotificationStatus(message) {
+        const statusElement = document.getElementById('notificationStatus');
+        const toggleButton = document.getElementById('notificationToggle');
+        
+        if (message) {
+            statusElement.textContent = message;
+            return;
+        }
+        
+        if (!window.notificationManager || !window.notificationManager.isSupported) {
+            console.log('通知管理器不支持或未加载');
+            statusElement.textContent = '您的浏览器不支持推送通知';
+            toggleButton.disabled = true;
+            return;
+        }
+        
+        try {
+            console.log('开始检查订阅状态...');
+            // 使用新的getSubscriptionStatus方法检查实际状态
+            const status = await window.notificationManager.getSubscriptionStatus();
+            console.log('订阅状态检查结果:', status);
+            
+            switch (status) {
+                case 'granted':
+                    console.log('通知已启用');
+                    statusElement.textContent = '✅ 通知已启用，您将收到新消息推送';
+                    toggleButton.textContent = '禁用通知';
+                    toggleButton.disabled = false;
+                    break;
+                case 'denied':
+                    console.log('通知被拒绝');
+                    statusElement.textContent = '❌ 通知已被禁用，请在浏览器设置中允许通知';
+                    toggleButton.textContent = '启用通知';
+                    toggleButton.disabled = false;
+                    break;
+                case 'default':
+                case 'no_subscription':
+                    console.log('无订阅或默认状态');
+                    statusElement.textContent = '💬 点击启用通知以接收新消息推送';
+                    toggleButton.textContent = '启用通知';
+                    toggleButton.disabled = false;
+                    break;
+                case 'error':
+                    console.log('状态检查出错');
+                    statusElement.textContent = '⚠️ 检查通知状态时出现错误';
+                    toggleButton.disabled = true;
+                    break;
+                default:
+                    console.log('未知状态:', status);
+                    statusElement.textContent = '通知功能不可用';
+                    toggleButton.disabled = true;
+                    break;
+            }
+        } catch (error) {
+            console.error('更新通知状态失败:', error);
+            statusElement.textContent = '⚠️ 检查通知状态时出现错误';
+            toggleButton.disabled = true;
+        }
+    }
+    
+    // 检查通知设置
+    async function checkNotificationSettings() {
+        try {
+            const response = await fetch('/api/notification-settings', {
+                credentials: 'include'
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                const settings = data.settings;
+                if (settings.has_subscriptions) {
+                    console.log(`已有 ${settings.subscription_count} 个推送订阅`);
+                }
+            }
+        } catch (error) {
+            console.error('检查通知设置失败:', error);
+        }
+    }
+    
+    // 切换通知状态
+    async function toggleNotifications() {
+        try {
+            if (!window.notificationManager || !window.notificationManager.isSupported) {
+                alert('您的浏览器不支持推送通知功能');
+                return;
+            }
+            
+            // 使用新的getSubscriptionStatus方法检查状态
+            const status = await window.notificationManager.getSubscriptionStatus();
+            
+            if (status === 'granted') {
+                // 禁用通知
+                const success = await window.disableNotifications();
+                if (success) {
+                    alert('通知已禁用');
+                    await updateNotificationStatus();
+                } else {
+                    alert('禁用通知失败');
+                }
+            } else {
+                // 启用通知
+                const success = await window.enableNotifications();
+                if (success) {
+                    alert('通知已启用！您现在会收到新消息推送。');
+                    await updateNotificationStatus();
+                } else {
+                    alert('启用通知失败，请检查浏览器权限设置');
+                }
+            }
+        } catch (error) {
+            console.error('切换通知状态失败:', error);
+            alert('操作失败：' + error.message);
         }
     }
     </script>

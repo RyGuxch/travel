@@ -251,7 +251,7 @@ def upgrade():
             sa.PrimaryKeyConstraint('id')
         )
     except:
-    pass
+        pass
 
 
 def downgrade():
