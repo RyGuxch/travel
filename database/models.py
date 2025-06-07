@@ -308,23 +308,3 @@ class ExpenseCategory(db.Model):
     
     # 唯一约束：同一用户不能有重复的分类名
     __table_args__ = (db.UniqueConstraint('user_id', 'name', name='unique_user_category'),) 
-
-class PushSubscription(db.Model):
-    """推送订阅表 - 存储用户的Web推送订阅信息"""
-    __tablename__ = 'push_subscriptions'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    endpoint = db.Column(db.String(500), nullable=False)  # 推送服务端点
-    p256dh = db.Column(db.String(200), nullable=False)  # 公钥
-    auth = db.Column(db.String(50), nullable=False)  # 认证密钥
-    user_agent = db.Column(db.String(500), nullable=True)  # 用户代理字符串
-    is_active = db.Column(db.Boolean, default=True)  # 是否激活
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_used = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # 建立关系
-    user = db.relationship('User', backref=db.backref('push_subscriptions', lazy='dynamic'))
-    
-    # 唯一约束：同一用户同一端点只能有一个订阅
-    __table_args__ = (db.UniqueConstraint('user_id', 'endpoint', name='unique_user_subscription'),) 
